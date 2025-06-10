@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
@@ -129,9 +130,7 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 	return counters
 }
 
-func metricsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("=========> start to get ib counter in service<==========")
-
+func GetAllIBCounter() []IBCounter {
 	IBDev := GetIBDev()
 	ibCounters := getIBDevCounter(IBDev)
 
@@ -140,6 +139,14 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	portUtil := getPortSpeed(IBDev)
 	ibCounters = append(ibCounters, portUtil...)
+
+	return ibCounters
+}
+
+func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("=========> start to get ib counter in service<==========")
+
+	ibCounters := GetAllIBCounter()
 
 	updateMetrics(ibCounters)
 
@@ -152,6 +159,7 @@ func main() {
 	port := flag.String("port", "9315", "port to run the server on")
 	logfile := flag.String("log", "./ib-exporter.log", "log file path")
 	termi := flag.Bool("termi", false, "Print log to terminal and file")
+	runonce := flag.Bool("runonce", false, "Run once and exit")
 	flag.Parse()
 
 	// log setting
@@ -174,6 +182,14 @@ func main() {
 		}
 	}
 	log.SetOutput(logOutput)
+
+	if *runonce {
+		log.Println("Running once and exiting...")
+		ibCounters := GetAllIBCounter()
+		prometheusMetric := countersToPrometheusFormat(ibCounters)
+		fmt.Println(prometheusMetric)
+		os.Exit(0)
+	}
 
 	prometheus.MustRegister(ibcounterGauge)
 

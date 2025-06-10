@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -16,6 +17,19 @@ type IBCounter struct {
 	IBDev        string
 	counterName  string
 	counterValue uint64
+}
+
+func (c *IBCounter) toPrometheusFormat() string {
+	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.counterName, c.counterValue)
+}
+
+func countersToPrometheusFormat(counters []IBCounter) string {
+	var b strings.Builder
+	for _, c := range counters {
+		b.WriteString(c.toPrometheusFormat())
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 func listFiles(dir string) ([]string, error) {
