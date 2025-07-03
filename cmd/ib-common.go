@@ -92,6 +92,9 @@ func GetIBDev() []string {
 		// if !IsIBLink(ibDev) {
 		// 	continue
 		// }
+		// if !IsIBLink(ibDev) {
+		// 	continue
+		// }
 		// just add  linkup port IBDev
 		if isDevActive(ibDev) {
 			activeIBDev = append(activeIBDev, ibDev)
