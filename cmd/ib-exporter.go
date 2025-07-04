@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bufio"
+	"archive/zip"
 	"flag"
 	"fmt"
 	"io"
@@ -12,9 +12,10 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strconv"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -58,7 +59,7 @@ func getIBDevCounter(IBDev []string) []IBCounter {
 
 func updateMetrics(counters []IBCounter) {
 	for _, counter := range counters {
-		ibcounterGauge.WithLabelValues(counter.counterName, counter.IBDev).Set(float64(counter.counterValue))
+		ibcounterGauge.WithLabelValues(counter.CounterName, counter.IBDev).Set(float64(counter.CounterValue))
 	}
 }
 
@@ -100,9 +101,9 @@ func getQPNum(allIBDev []string) []IBCounter {
 			}
 		}
 		counter.IBDev = IBDev
-		counter.counterName = "QPNum"
-		counter.counterValue = QPNum
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.counterName, counter.counterValue)
+		counter.CounterName = "QPNum"
+		counter.CounterValue = QPNum
+		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
@@ -114,7 +115,7 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 	for i := 0; i < len(allIBDev); i++ {
 		var counter IBCounter
 		counter.IBDev = allIBDev[i]
-		counter.counterName = "portSpeed"
+		counter.CounterName = "portSpeed"
 
 		ratePath := path.Join("/sys/class/infiniband", allIBDev[i], "ports/1/rate")
 		rateByte, err := os.ReadFile(ratePath)
@@ -123,12 +124,12 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 		}
 		rate := string(rateByte)
 		if strings.Contains(rate, "200") {
-			counter.counterValue = 200000
+			counter.CounterValue = 200000
 		}
 		if strings.Contains(rate, "400") {
-			counter.counterValue = 400000
+			counter.CounterValue = 400000
 		}
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.counterName, counter.counterValue)
+		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
@@ -231,9 +232,12 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	// command line define
 	port := flag.String("port", "9315", "port to run the server on")
-	logfile := flag.String("log", "./ib-exporter.log", "log file path")
+	logfile := flag.String("log", "/var/log/ib-exporter.log", "log file path")
 	termi := flag.Bool("termi", false, "Print log to terminal and file")
 	runonce := flag.Bool("runonce", false, "Run once and exit")
+	runDuration := flag.Int("t", 5, "The total time for the task to run")
+	archiveThresholdMB := flag.Int("r", 5, "The size threshold in MB for archiving the data folder")
+	dataPath := flag.String("datapath", "/var/log/ibtestdata", "Path for storing data files")
 	flag.Parse()
 
 	// log setting
@@ -258,11 +262,56 @@ func main() {
 	log.SetOutput(logOutput)
 
 	if *runonce {
-		log.Println("Running once and exiting...")
-		ibCounters := GetAllIBCounter()
-		prometheusMetric := countersToPrometheusFormat(ibCounters)
-		fmt.Println(prometheusMetric)
-		os.Exit(0)
+		// testdataDir := filepath.Join("/var/log", "ibtestdata")
+		testdataDir := *dataPath
+		err := os.MkdirAll(testdataDir, 0755)
+		if err != nil {
+			log.Fatalf("Fatal: Could not create 'testdata' directory: %v", err)
+		}
+
+		log.Println("Checking data directory for potential archiving...")
+		thresholdBytes := int64(*archiveThresholdMB) * 1024 * 1024
+
+		archiveDir := filepath.Dir(testdataDir)
+		if err := manageDataArchives(testdataDir, archiveDir, thresholdBytes); err != nil {
+			log.Fatalf("Fatal: Failed to manage data archives: %v", err)
+		}
+
+		timestamp := time.Now().Format("20060102_150405")
+		dataFilename := fmt.Sprintf("data_%s.log", timestamp)
+		finalDataPath := filepath.Join(testdataDir, dataFilename)
+		dataFile, err := os.Create(finalDataPath)
+		if err != nil {
+			log.Fatalf("Fatal: Could not create data log file: %v", err)
+		}
+		defer dataFile.Close()
+
+		log.Printf("Run-once mode activated. Writing data to %s", finalDataPath)
+
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		done := make(chan bool)
+		go func() { time.Sleep(time.Duration(*runDuration) * time.Second); done <- true }()
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				ibCounters := GetAllIBCounter()
+				for _, counter := range ibCounters {
+					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%d\n",
+						time.Now().UnixNano(),
+						counter.IBDev,
+						counter.CounterName,
+						counter.CounterValue)
+					if err != nil {
+						log.Printf("Error writing to log file: %v", err)
+					}
+				}
+			}
+		}
 	}
 
 	prometheus.MustRegister(ibcounterGauge)
@@ -270,4 +319,87 @@ func main() {
 	http.HandleFunc("/metrics", metricsHandler)
 	log.Printf("Starting server on :%s", *port)
 	log.Fatal(http.ListenAndServe(":"+*port, nil))
+}
+
+func manageDataArchives(dataDir, archiveDir string, thresholdBytes int64) error {
+	// 1. Calculate the total size of the data directory
+	var totalSize int64
+	err := filepath.Walk(dataDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			totalSize += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("could not calculate directory size: %w", err)
+	}
+
+	// 2. If size is below the threshold, do nothing.
+	if totalSize < thresholdBytes {
+		log.Printf("Data directory size (%d bytes) is under the %dMB threshold. No action needed.", totalSize, thresholdBytes)
+		return nil
+	}
+	log.Printf("Data directory size (%d bytes) exceeds %dMB threshold. Starting archival process.", totalSize, thresholdBytes)
+
+	// 3. Create a new timestamped archive file
+	timestamp := time.Now().Format("20060102_150405")
+	archiveName := fmt.Sprintf("ibtestdata_%s.zip", timestamp)
+	archivePath := filepath.Join(archiveDir, archiveName)
+	archiveFile, err := os.Create(archivePath)
+	if err != nil {
+		return fmt.Errorf("could not create archive file: %w", err)
+	}
+	defer archiveFile.Close()
+
+	zipWriter := zip.NewWriter(archiveFile)
+	defer zipWriter.Close()
+
+	// 4. Find all .log files and add them to the archive
+	filesToArchive, err := filepath.Glob(filepath.Join(dataDir, "*.log"))
+	if err != nil {
+		return fmt.Errorf("could not find log files to archive: %w", err)
+	}
+
+	for _, filePath := range filesToArchive {
+		log.Printf("Archiving %s", filepath.Base(filePath))
+		file, err := os.Open(filePath)
+		if err != nil {
+			continue
+		} // Skip files that can't be opened
+
+		zipEntry, err := zipWriter.Create(filepath.Base(filePath))
+		if err != nil {
+			file.Close()
+			continue
+		}
+
+		_, err = io.Copy(zipEntry, file)
+		file.Close() // Close file before deleting
+
+		if err == nil {
+			os.Remove(filePath) // Delete original file after successful archival
+		}
+	}
+	log.Printf("Successfully created archive: %s", archiveName)
+
+	// 5. Rotate old archives, keeping the 5 most recent
+	allArchives, err := filepath.Glob(filepath.Join(archiveDir, "testdata_*.zip"))
+	if err != nil {
+		return fmt.Errorf("could not find archives for rotation: %w", err)
+	}
+
+	if len(allArchives) > 5 {
+		sort.Strings(allArchives) // Sorts alphabetically, which works for our timestamp format
+		archivesToDelete := allArchives[:len(allArchives)-5]
+		log.Printf("Found %d archives, cleaning up the oldest %d.", len(allArchives), len(archivesToDelete))
+		for _, oldArchive := range archivesToDelete {
+			log.Printf("Deleting old archive: %s", filepath.Base(oldArchive))
+			os.Remove(oldArchive)
+		}
+	}
+
+	return nil
 }
