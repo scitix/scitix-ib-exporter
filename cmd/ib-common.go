@@ -61,6 +61,10 @@ func IsIBLink(IBDev string) bool {
 		log.Printf("Get IBDev:%s, ==>InfiniBand Link_layer, link_layer:%s<==", IBDev, strings.ReplaceAll(string(contents), "\n", ""))
 		return true
 	}
+	if strings.Contains(string(contents), "Ethernet") {
+		log.Printf("Get IBDev:%s, ==>ROCE Link_layer, link_layer:%s<==", IBDev, strings.ReplaceAll(string(contents), "\n", ""))
+		return true
+	}
 	return false
 }
 
