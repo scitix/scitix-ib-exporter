@@ -14,13 +14,13 @@ var (
 )
 
 type IBCounter struct {
-	IBDev        string
-	counterName  string
-	counterValue uint64
+	IBDev        string `json:"ib_dev"`
+	CounterName  string `json:"counter_name"`
+	CounterValue uint64 `json:"counter_value"`
 }
 
 func (c *IBCounter) toPrometheusFormat() string {
-	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.counterName, c.counterValue)
+	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.CounterName, c.CounterValue)
 }
 
 func countersToPrometheusFormat(counters []IBCounter) string {
@@ -112,7 +112,7 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 		}
 		for _, counter := range ibCounterName {
 			// counter Name
-			ibCounter.counterName = counter
+			ibCounter.CounterName = counter
 
 			counterValuePath := path.Join(counterPath, counter)
 			contents, err := os.ReadFile(counterValuePath)
@@ -126,8 +126,8 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 				return nil, err
 			}
 
-			ibCounter.counterValue = value
-			log.Printf("ibDev:%11s, counterName:%35s:%d", ibCounter.IBDev, ibCounter.counterName, ibCounter.counterValue)
+			ibCounter.CounterValue = value
+			log.Printf("ibDev:%11s, counterName:%35s:%d", ibCounter.IBDev, ibCounter.CounterName, ibCounter.CounterValue)
 			allCounter = append(allCounter, ibCounter)
 		}
 	}
