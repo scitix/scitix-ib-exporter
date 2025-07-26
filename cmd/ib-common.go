@@ -87,9 +87,9 @@ func GetIBDev() []string {
 
 	var activeIBDev []string
 	for _, ibDev := range allIBDev {
-		if !IsIBLink(ibDev) {
-			continue
-		}
+		// if !IsIBLink(ibDev) {
+		// 	continue
+		// }
 		if isDevActive(ibDev) {
 			activeIBDev = append(activeIBDev, ibDev)
 		}
