@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -8,7 +9,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -130,6 +134,73 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 	return counters
 }
 
+func GetRoceData(allIBDev []string) []IBCounter {
+	var counters []IBCounter
+
+	for i := 0; i < len(allIBDev); i++ {
+		// 获取以太网接口
+		netDir := filepath.Join("/sys/class/infiniband", allIBDev[i], "device", "net")
+
+		entries, err := os.ReadDir(netDir)
+		if err != nil {
+			log.Printf("Failed to read %s: %v\n", netDir, err)
+			os.Exit(1)
+		}
+
+		if len(entries) != 1 {
+			log.Printf("Expected one net interface for %s, found %d\n", allIBDev[i], len(entries))
+			os.Exit(1)
+		}
+
+		fields := map[string]bool{
+			"rx_prio5_pause":          true,
+			"rx_prio5_pause_duration": true,
+			"tx_prio5_pause":          true,
+			"tx_prio5_pause_duration": true,
+		}
+
+		cmd := exec.Command("ethtool", "-S", entries[0].Name())
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return nil
+		}
+
+		if err := cmd.Start(); err != nil {
+			return nil
+		}
+
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+
+			if _, ok := fields[key]; ok {
+				num, err := strconv.ParseUint(val, 10, 64)
+				if err != nil {
+					continue // or log parse error
+				}
+				counters = append(counters, IBCounter{
+					IBDev:        allIBDev[i],
+					counterName:  key,
+					counterValue: num,
+				})
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return nil
+		}
+
+		cmd.Wait()
+
+	}
+	return counters
+}
+
 func GetAllIBCounter() []IBCounter {
 	IBDev := GetIBDev()
 	ibCounters := getIBDevCounter(IBDev)
@@ -139,6 +210,9 @@ func GetAllIBCounter() []IBCounter {
 
 	portUtil := getPortSpeed(IBDev)
 	ibCounters = append(ibCounters, portUtil...)
+
+	roceData := GetRoceData(IBDev)
+	ibCounters = append(ibCounters, roceData...)
 
 	return ibCounters
 }
