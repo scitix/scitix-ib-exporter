@@ -15,6 +15,7 @@ var (
 
 type IBCounter struct {
 	IBDev        string `json:"ib_dev"`
+	NetDev       string `json:"net_dev"`
 	CounterName  string `json:"counter_name"`
 	CounterValue uint64 `json:"counter_value"`
 }
@@ -103,6 +104,20 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 	for _, perIBDev := range allIBDev {
 		var ibCounter IBCounter
 		ibCounter.IBDev = perIBDev
+
+		netDevPath := path.Join(IBSYSPATH, perIBDev, "device/net/")
+		entries, err := os.ReadDir(netDevPath)
+		if err != nil {
+			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
+		}
+
+		// just one net device is expected
+		for _, entry := range entries {
+			if entry.IsDir() {
+				ibCounter.NetDev = entry.Name()
+				log.Printf("Get IBDev:%s, NetDev is:%s", ibCounter.IBDev, ibCounter.NetDev)
+			}
+		}
 		// Get IB port counter
 		counterPath := path.Join(IBSYSPATH, perIBDev, "ports/1", counterType)
 		ibCounterName, err := listFiles(counterPath)

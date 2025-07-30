@@ -90,16 +90,29 @@ func getQPNum(allIBDev []string) []IBCounter {
 		var counter IBCounter
 		var QPNum uint64
 		bdf := GetIBDevBDF(IBDev)
-		path := path.Join("/sys/kernel/debug/mlx5", bdf, "QPs")
-		entries, err := os.ReadDir(path)
+		qpPath := path.Join("/sys/kernel/debug/mlx5", bdf, "QPs")
+		entries, err := os.ReadDir(qpPath)
 		if err != nil {
-			log.Printf("fail to read pat:%s, err:%v", path, err)
+			log.Printf("fail to read pat:%s, err:%v", qpPath, err)
 			return counters
 		}
 
 		for _, entry := range entries {
 			if entry.IsDir() {
 				QPNum++
+			}
+		}
+		netDevPath := path.Join(IBSYSPATH, IBDev, "device/net/")
+		entries, err = os.ReadDir(netDevPath)
+		if err != nil {
+			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
+		}
+
+		// just one net device is expected
+		for _, entry := range entries {
+			if entry.IsDir() {
+				counter.NetDev = entry.Name()
+				log.Printf("Get IBDev:%s, NetDev is:%s", counter.IBDev, counter.NetDev)
 			}
 		}
 		counter.IBDev = IBDev
@@ -116,6 +129,7 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 
 	for i := 0; i < len(allIBDev); i++ {
 		var counter IBCounter
+		counter.NetDev = allIBDev[i]
 		counter.IBDev = allIBDev[i]
 		counter.CounterName = "portSpeed"
 
@@ -189,6 +203,7 @@ func GetRoceData(allIBDev []string) []IBCounter {
 				}
 				counters = append(counters, IBCounter{
 					IBDev:        allIBDev[i],
+					NetDev:       entries[0].Name(),
 					CounterName:  key,
 					CounterValue: num,
 				})
@@ -303,9 +318,10 @@ func main() {
 			case <-ticker.C:
 				ibCounters := GetAllIBCounter()
 				for _, counter := range ibCounters {
-					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%d\n",
+					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%d\n",
 						time.Now().UnixNano(),
 						counter.IBDev,
+						counter.NetDev,
 						counter.CounterName,
 						counter.CounterValue)
 					if err != nil {
