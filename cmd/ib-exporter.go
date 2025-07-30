@@ -26,6 +26,7 @@ import (
 )
 
 var (
+	Version = "0.0.1"
 	// ibRegistry     *prometheus.Registry
 	ibcounterGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -130,7 +131,19 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 
 	for i := 0; i < len(allIBDev); i++ {
 		var counter IBCounter
-		counter.NetDev = allIBDev[i]
+		netDevPath := path.Join(IBSYSPATH, allIBDev[i], "device/net/")
+		entries, err := os.ReadDir(netDevPath)
+		if err != nil {
+			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
+		}
+
+		// just one net device is expected
+		for _, entry := range entries {
+			if entry.IsDir() {
+				counter.NetDev = entry.Name()
+				log.Printf("Get IBDev:%s, NetDev is:%s", counter.IBDev, counter.NetDev)
+			}
+		}
 		counter.IBDev = allIBDev[i]
 		counter.CounterName = "portSpeed"
 
@@ -259,7 +272,13 @@ func main() {
 	runDuration := flag.Int("t", 5, "The total time for the task to run")
 	archiveThresholdMB := flag.Int("r", 5, "The size threshold in MB for archiving the data folder")
 	dataPath := flag.String("datapath", "/var/log/ibtestdata", "Path for storing data files")
+	version := flag.Bool("version", false, "Version of the application")
 	flag.Parse()
+
+	if *version {
+		fmt.Printf("ib-exporter version: %s\n", Version)
+		return
+	}
 
 	// log setting
 	var logOutput io.Writer
