@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -83,6 +84,50 @@ func GetIBDevBDF(mlxDev string) string {
 		}
 	}
 	return bdf
+}
+
+func getMRNum(allIBDev []string) []IBCounter {
+	var counters []IBCounter
+
+	for _, IBDev := range allIBDev {
+		var counter IBCounter
+
+		cmd := exec.Command("rdma", "resource", "show", IBDev)
+
+		outputBytes, err := cmd.CombinedOutput()
+		if err != nil {
+			return counters
+		}
+
+		outputStr := string(outputBytes)
+
+		// 3. 使用与之前相同的、经过验证的正则表达式进行解析
+		re := regexp.MustCompile(`(\w+_\d+):\s+.*?qp\s+(\d+)\s+.*?mr\s+(\d+)`)
+		matches := re.FindStringSubmatch(outputStr)
+
+		// 4. 检查解析结果。我们期望有4个匹配项：
+		//    matches[0]: 完整的匹配字符串
+		//    matches[1]: 设备名 (第一个捕获组)
+		//    matches[2]: QP 值 (第二个捕获组)
+		//    matches[3]: MR 值 (第三个捕获组)
+		if len(matches) < 4 {
+			return counters
+		}
+
+		// 5. 将字符串数值转换为整数
+		// qp, err1 := strconv.Atoi(matches[2])
+		mr, err2 := strconv.ParseUint(matches[3], 10, 64)
+
+		if err2 != nil {
+			return counters
+		}
+		counter.IBDev = IBDev
+		counter.CounterName = "MRNum"
+		counter.CounterValue = mr
+		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
+		counters = append(counters, counter)
+	}
+	return counters
 }
 
 func getQPNum(allIBDev []string) []IBCounter {
@@ -239,6 +284,9 @@ func GetAllIBCounter() []IBCounter {
 
 	QPNums := getQPNum(IBDev)
 	ibCounters = append(ibCounters, QPNums...)
+
+	MRNums := getMRNum(IBDev)
+	ibCounters = append(ibCounters, MRNums...)
 
 	roceData := GetRoceData(IBDev)
 	ibCounters = append(ibCounters, roceData...)
