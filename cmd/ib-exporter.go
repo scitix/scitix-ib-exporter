@@ -320,7 +320,7 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Printf("ib-exporter version: %s\n", Version)
+		fmt.Printf("ib-exporter for High-Precision Monitoring version: %s\n", Version)
 		return
 	}
 
