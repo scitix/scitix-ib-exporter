@@ -372,30 +372,21 @@ func GetRoceData(allIBDev []string) []IBCounter {
 				"rx_vport_rdma_unicast_bytes": true,
 				"tx_vport_rdma_unicast_bytes": true,
 			}
-		var fields map[string]bool
-		if strings.Contains(trimmedContent, "Ethernet") {
-			fields = map[string]bool{
-				"rx_prio0_bytes":          true,
-				"tx_prio0_bytes":          true,
-				"rx_prio0_discards":       true,
-				"rx_prio5_bytes":          true,
-				"tx_prio5_bytes":          true,
-				"rx_prio5_discards":       true,
-				"rx_prio0_pause":          true,
-				"rx_prio0_pause_duration": true,
-				"tx_prio0_pause":          true,
-				"tx_prio0_pause_duration": true,
-				"rx_prio5_pause":          true,
-				"rx_prio5_pause_duration": true,
-				"tx_prio5_pause":          true,
-				"tx_prio5_pause_duration": true,
-			}
-		}
-		if strings.Contains(trimmedContent, "InfiniBand") {
-			fields = map[string]bool{
-				"rx_vport_rdma_unicast_bytes": true,
-				"tx_vport_rdma_unicast_bytes": true,
-			}
+		fields := map[string]bool{
+			"rx_prio0_bytes":          true,
+			"tx_prio0_bytes":          true,
+			"rx_prio0_discards":       true,
+			"rx_prio5_bytes":          true,
+			"tx_prio5_bytes":          true,
+			"rx_prio5_discards":       true,
+			"rx_prio0_pause":          true,
+			"rx_prio0_pause_duration": true,
+			"tx_prio0_pause":          true,
+			"tx_prio0_pause_duration": true,
+			"rx_prio5_pause":          true,
+			"rx_prio5_pause_duration": true,
+			"tx_prio5_pause":          true,
+			"tx_prio5_pause_duration": true,
 		}
 
 		cmd := exec.Command("ethtool", "-S", entries[0].Name())
