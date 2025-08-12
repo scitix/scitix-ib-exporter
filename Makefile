@@ -14,8 +14,6 @@ default: build
 
 build:
 	$(GOBUILD) -o $(BINARY_PATH) $(CMD_DIR)
-	# scp $(BINARY_PATH) gpu-node-142:/tmp
-	# scp $(BINARY_PATH) gpu-node-141:/tmp
 
 clean:
 	$(GOCLEAN)
