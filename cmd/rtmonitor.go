@@ -2,11 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os"
 	"sort"
-	"strings"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -18,22 +14,16 @@ type tickMsg time.Time
 
 // *** MODIFIED: DeviceMetrics 结构体现在使用 uint64 来存储需要计算的计数器 ***
 type DeviceMetrics struct {
-	IBDev         string
-	PortSpeed     string // 端口速率通常是固定值，保持 string 即可
-	RX            uint64
-	TX            uint64
-	Queue0Rx      uint64
-	Queue0Tx      uint64
-	Queue5Rx      uint64
-	Queue5Tx      uint64
-	IBDev         string
-	PortSpeed     string // 端口速率通常是固定值，保持 string 即可
-	RX            uint64
-	TX            uint64
-	Queue0Rx      uint64
-	Queue0Tx      uint64
-	Queue5Rx      uint64
-	Queue5Tx      uint64
+	IBDev     string
+	PortSpeed string // 端口速率通常是固定值，保持 string 即可
+
+	// 使用 uint64 以便进行数学运算
+	Queue0Rx uint64
+	Queue0Tx uint64
+	Queue5Rx uint64
+	Queue5Tx uint64
+
+	// 其他字段
 	Queue0Discard uint64
 	Queue5Discard uint64
 	OOS           uint64
@@ -421,104 +411,53 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 	}
 
 	// 3. 遍历排序好的设备列表，计算速率并生成行
+	for _, deviceName := range deviceOrder {
+		currentMetrics, ok := currentRawMetrics[deviceName]
+		if !ok {
+			continue // 如果没有获取到该设备的数据，则跳过
+		}
+		currentMetrics.LastUpdated = currentTime
 
-	if allCounters[0].DevLinkType == "Ethernet" {
-		for _, deviceName := range deviceOrder {
-			currentMetrics, ok := currentRawMetrics[deviceName]
-			if !ok {
-				continue // 如果没有获取到该设备的数据，则跳过
+		prevMetrics, hasPrevious := previousMetrics[deviceName]
+
+		var q0RxGbps, q0TxGbps, q5RxGbps, q5TxGbps float64
+		var q0Discard, q5Discard, oos uint64
+
+		// 只有在存在上一次数据时，才进行速率计算
+		if hasPrevious {
+			// 计算时间差（秒）
+			duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
+			if duration > 0 {
+				// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
+				q0RxGbps = float64(currentMetrics.Queue0Rx-prevMetrics.Queue0Rx) * 8 / duration / 1e9
+				q0TxGbps = float64(currentMetrics.Queue0Tx-prevMetrics.Queue0Tx) * 8 / duration / 1e9
+				q5RxGbps = float64(currentMetrics.Queue5Rx-prevMetrics.Queue5Rx) * 8 / duration / 1e9
+				q5TxGbps = float64(currentMetrics.Queue5Tx-prevMetrics.Queue5Tx) * 8 / duration / 1e9
+				q0Discard = currentMetrics.Queue0Discard - prevMetrics.Queue0Discard
+				q5Discard = currentMetrics.Queue5Discard - prevMetrics.Queue5Discard
+				oos = currentMetrics.OOS - prevMetrics.OOS
 			}
-			currentMetrics.LastUpdated = currentTime
+		}
 
-	if allCounters[0].DevLinkType == "Ethernet" {
-		for _, deviceName := range deviceOrder {
-			currentMetrics, ok := currentRawMetrics[deviceName]
-			if !ok {
-				continue // 如果没有获取到该设备的数据，则跳过
-			}
-			currentMetrics.LastUpdated = currentTime
-
-			prevMetrics, hasPrevious := previousMetrics[deviceName]
-			prevMetrics, hasPrevious := previousMetrics[deviceName]
-
-			var q0RxGbps, q0TxGbps, q5RxGbps, q5TxGbps float64
-			var q0Discard, q5Discard, oos uint64
-			var q0RxGbps, q0TxGbps, q5RxGbps, q5TxGbps float64
-			var q0Discard, q5Discard, oos uint64
-
-			// 只有在存在上一次数据时，才进行速率计算
-			if hasPrevious {
-				// 计算时间差（秒）
-				duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
-				if duration > 0 {
-					// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
-					q0RxGbps = float64(currentMetrics.Queue0Rx-prevMetrics.Queue0Rx) * 8 / duration / 1e9
-					q0TxGbps = float64(currentMetrics.Queue0Tx-prevMetrics.Queue0Tx) * 8 / duration / 1e9
-					q5RxGbps = float64(currentMetrics.Queue5Rx-prevMetrics.Queue5Rx) * 8 / duration / 1e9
-					q5TxGbps = float64(currentMetrics.Queue5Tx-prevMetrics.Queue5Tx) * 8 / duration / 1e9
-					q0Discard = currentMetrics.Queue0Discard - prevMetrics.Queue0Discard
-					q5Discard = currentMetrics.Queue5Discard - prevMetrics.Queue5Discard
-					// rx = float64(currentMetrics.RX-prevMetrics.RX) * 8 / duration / 1e9
-					// tx = float64(currentMetrics.TX-prevMetrics.TX) * 8 / duration / 1e9
-					oos = currentMetrics.OOS - prevMetrics.OOS
-				}
-			}
-			// 只有在存在上一次数据时，才进行速率计算
-			if hasPrevious {
-				// 计算时间差（秒）
-				duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
-				if duration > 0 {
-					// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
-					q0RxGbps = float64(currentMetrics.Queue0Rx-prevMetrics.Queue0Rx) * 8 / duration / 1e9
-					q0TxGbps = float64(currentMetrics.Queue0Tx-prevMetrics.Queue0Tx) * 8 / duration / 1e9
-					q5RxGbps = float64(currentMetrics.Queue5Rx-prevMetrics.Queue5Rx) * 8 / duration / 1e9
-					q5TxGbps = float64(currentMetrics.Queue5Tx-prevMetrics.Queue5Tx) * 8 / duration / 1e9
-					q0Discard = currentMetrics.Queue0Discard - prevMetrics.Queue0Discard
-					q5Discard = currentMetrics.Queue5Discard - prevMetrics.Queue5Discard
-					// rx = float64(currentMetrics.RX-prevMetrics.RX) * 8 / duration / 1e9
-					// tx = float64(currentMetrics.TX-prevMetrics.TX) * 8 / duration / 1e9
-					oos = currentMetrics.OOS - prevMetrics.OOS
-				}
-			}
-
-			// 生成表格行，使用计算出的速率
-			newRows = append(newRows, table.Row{
-				currentMetrics.IBDev,
-				currentMetrics.PortSpeed,
-				fmt.Sprintf("%.2f", q0RxGbps),
-				fmt.Sprintf("%.2f", q0TxGbps),
-				fmt.Sprintf("%d", q0Discard),
-				fmt.Sprintf("%.2f", q5RxGbps),
-				fmt.Sprintf("%.2f", q5TxGbps),
-				fmt.Sprintf("%d", q5Discard),
-				fmt.Sprintf("%d", oos),
-				fmt.Sprintf("%d", currentMetrics.QPNum),
-				fmt.Sprintf("%d", currentMetrics.MRNum),
-				currentMetrics.RxPrio5Pause,
-				currentMetrics.TxPrio5Pause,
-				currentMetrics.NpCnpSent,
-				currentMetrics.RpCnpHandled,
-				currentTime.Format("15:04:05"),
-			})
-			// 生成表格行，使用计算出的速率
-			newRows = append(newRows, table.Row{
-				currentMetrics.IBDev,
-				currentMetrics.PortSpeed,
-				fmt.Sprintf("%.2f", q0RxGbps),
-				fmt.Sprintf("%.2f", q0TxGbps),
-				fmt.Sprintf("%d", q0Discard),
-				fmt.Sprintf("%.2f", q5RxGbps),
-				fmt.Sprintf("%.2f", q5TxGbps),
-				fmt.Sprintf("%d", q5Discard),
-				fmt.Sprintf("%d", oos),
-				fmt.Sprintf("%d", currentMetrics.QPNum),
-				fmt.Sprintf("%d", currentMetrics.MRNum),
-				currentMetrics.RxPrio5Pause,
-				currentMetrics.TxPrio5Pause,
-				currentMetrics.NpCnpSent,
-				currentMetrics.RpCnpHandled,
-				currentTime.Format("15:04:05"),
-			})
+		// 生成表格行，使用计算出的速率
+		newRows = append(newRows, table.Row{
+			currentMetrics.IBDev,
+			currentMetrics.PortSpeed,
+			fmt.Sprintf("%.2f", q0RxGbps),
+			fmt.Sprintf("%.2f", q0TxGbps),
+			fmt.Sprintf("%d", q0Discard),
+			fmt.Sprintf("%.2f", q5RxGbps),
+			fmt.Sprintf("%.2f", q5TxGbps),
+			fmt.Sprintf("%d", q5Discard),
+			fmt.Sprintf("%d", oos),
+			fmt.Sprintf("%d", currentMetrics.QPNum),
+			fmt.Sprintf("%d", currentMetrics.MRNum),
+			currentMetrics.RxPrio5Pause,
+			currentMetrics.TxPrio5Pause,
+			currentMetrics.NpCnpSent,
+			currentMetrics.RpCnpHandled,
+			currentTime.Format("15:04:05"),
+		})
 
 			newMetricsMap[deviceName] = currentMetrics
 		}
