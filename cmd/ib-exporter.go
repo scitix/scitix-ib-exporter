@@ -244,11 +244,15 @@ func GetRoceData(allIBDev []string) []IBCounter {
 
 		fields := map[string]bool{
 			"rx_prio0_bytes":          true,
-			"rx_prio0_discards":       true,
 			"tx_prio0_bytes":          true,
+			"rx_prio0_discards":       true,
 			"rx_prio5_bytes":          true,
-			"rx_prio5_discards":       true,
 			"tx_prio5_bytes":          true,
+			"rx_prio5_discards":       true,
+			"rx_prio0_pause":          true,
+			"rx_prio0_pause_duration": true,
+			"tx_prio0_pause":          true,
+			"tx_prio0_pause_duration": true,
 			"rx_prio5_pause":          true,
 			"rx_prio5_pause_duration": true,
 			"tx_prio5_pause":          true,
