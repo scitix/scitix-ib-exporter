@@ -20,13 +20,14 @@ import (
 	"sync"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
-	Version = "0.0.1"
+	Version = "0.0.2"
 	// ibRegistry     *prometheus.Registry
 	ibcounterGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -119,6 +120,19 @@ func getMRNum(allIBDev []string) []IBCounter {
 
 		if err2 != nil {
 			return counters
+		}
+		netDevPath := path.Join(IBSYSPATH, IBDev, "device/net/")
+		entries, err := os.ReadDir(netDevPath)
+		if err != nil {
+			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
+		}
+
+		// just one net device is expected
+		for _, entry := range entries {
+			if entry.IsDir() {
+				counter.NetDev = entry.Name()
+				log.Printf("Get IBDev:%s, NetDev is:%s", counter.IBDev, counter.NetDev)
+			}
 		}
 		counter.IBDev = IBDev
 		counter.CounterName = "MRNum"
@@ -228,6 +242,12 @@ func GetRoceData(allIBDev []string) []IBCounter {
 		}
 
 		fields := map[string]bool{
+			"rx_prio0_bytes":          true,
+			"rx_prio0_discards":       true,
+			"tx_prio0_bytes":          true,
+			"rx_prio5_bytes":          true,
+			"rx_prio5_discards":       true,
+			"tx_prio5_bytes":          true,
 			"rx_prio5_pause":          true,
 			"rx_prio5_pause_duration": true,
 			"tx_prio5_pause":          true,
@@ -316,6 +336,7 @@ func main() {
 	runDuration := flag.Int("t", 5, "The total time for the task to run")
 	archiveThresholdMB := flag.Int("r", 5, "The size threshold in MB for archiving the data folder")
 	dataPath := flag.String("datapath", "/var/log/ibtestdata", "Path for storing data files")
+	monitor := flag.Bool("monitor", false, "Monitor the IB devices and export metrics")
 	version := flag.Bool("version", false, "Version of the application")
 	flag.Parse()
 
@@ -344,6 +365,14 @@ func main() {
 		}
 	}
 	log.SetOutput(logOutput)
+
+	if *monitor {
+		p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+		if _, err := p.Run(); err != nil {
+			log.Fatalf("fail to load the app: %v", err)
+		}
+		os.Exit(0)
+	}
 
 	if *runonce {
 		// testdataDir := filepath.Join("/var/log", "ibtestdata")
