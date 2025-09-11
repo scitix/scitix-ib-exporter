@@ -436,8 +436,8 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 				duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
 				if duration > 0 {
 					// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
-					rx = float64(currentMetrics.RX-prevMetrics.RX) * 8 / duration / 1e9
-					tx = float64(currentMetrics.TX-prevMetrics.TX) * 8 / duration / 1e9
+					rx = float64(currentMetrics.RX-prevMetrics.RX) * 8 * 4 / duration / 1e9
+					tx = float64(currentMetrics.TX-prevMetrics.TX) * 8 * 4 / duration / 1e9
 					oos = currentMetrics.OOS - prevMetrics.OOS
 				}
 			}
