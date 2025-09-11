@@ -187,7 +187,7 @@ func getQPNum(allIBDev []string) []IBCounter {
 func getPortSpeed(allIBDev []string) []IBCounter {
 	var counters []IBCounter
 
-	for i := 0; i < len(allIBDev); i++ {
+	for i := range allIBDev {
 		var counter IBCounter
 		netDevPath := path.Join(IBSYSPATH, allIBDev[i], "device/net/")
 		entries, err := os.ReadDir(netDevPath)

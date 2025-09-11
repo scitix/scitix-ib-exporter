@@ -139,9 +139,9 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			switch c.CounterName {
 			case "portSpeed":
 				metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
-			case "rx_vport_rdma_unicast_bytes":
+			case "port_rcv_data":
 				metrics.RX = c.CounterValue
-			case "tx_vport_rdma_unicast_bytes":
+			case "port_xmit_data":
 				metrics.TX = c.CounterValue
 			case "out_of_sequence":
 				metrics.OOS = c.CounterValue
@@ -215,6 +215,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			newMetricsMap[deviceName] = currentMetrics
 		}
 	}
+
 	if allCounters[0].DevLinkType == "InfiniBand" {
 		for _, deviceName := range deviceOrder {
 			currentMetrics, ok := currentRawMetrics[deviceName]
