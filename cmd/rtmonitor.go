@@ -149,10 +149,6 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 				metrics.QPNum = c.CounterValue
 			case "MRNum":
 				metrics.MRNum = c.CounterValue
-			case "np_cnp_sent":
-				metrics.NpCnpSent = fmt.Sprintf("%d", c.CounterValue)
-			case "rp_cnp_handled":
-				metrics.RpCnpHandled = fmt.Sprintf("%d", c.CounterValue)
 			}
 		}
 
@@ -304,10 +300,6 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 				fmt.Sprintf("%d", oos),
 				fmt.Sprintf("%d", currentMetrics.QPNum),
 				fmt.Sprintf("%d", currentMetrics.MRNum),
-				currentMetrics.RxPrio5Pause,
-				currentMetrics.TxPrio5Pause,
-				currentMetrics.NpCnpSent,
-				currentMetrics.RpCnpHandled,
 				currentTime.Format("15:04:05"),
 			})
 
@@ -353,10 +345,6 @@ func initialModel() model {
 			{Title: "OOS", Width: 5},
 			{Title: "QP Num", Width: 7},
 			{Title: "MR Num", Width: 7},
-			{Title: "RX Pause", Width: 7},
-			{Title: "TX Pause", Width: 7},
-			{Title: "NP CNP Sent", Width: 9},
-			{Title: "RP CNP Handled", Width: 9},
 			{Title: "Time", Width: 8},
 		}
 	}
