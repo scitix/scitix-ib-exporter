@@ -87,6 +87,211 @@ func recalculateColumnWidths(weights []table.Column, availableWidth int) []table
 	return newColumns
 }
 
+// func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrder []string) ([]table.Row, map[string]DeviceMetrics) {
+// 	newRows := []table.Row{}
+// 	newMetricsMap := make(map[string]DeviceMetrics)
+
+// 	allCounters := GetAllIBCounter()
+// 	fmt.Println("Debug: Total Counters Fetched:", len(allCounters), allCounters[0].DevLinkType)
+// 	currentTime := time.Now()
+
+// 	currentRawMetrics := make(map[string]DeviceMetrics)
+// 	for _, c := range allCounters {
+// 		if _, exists := currentRawMetrics[c.IBDev]; !exists {
+// 			currentRawMetrics[c.IBDev] = DeviceMetrics{IBDev: c.IBDev}
+// 		}
+// 		metrics := currentRawMetrics[c.IBDev]
+
+// 		if strings.Contains(allCounters[0].DevLinkType, "Ethernet") {
+// 			switch c.CounterName {
+// 			case "portSpeed":
+// 				metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
+// 			case "rx_prio0_bytes":
+// 				metrics.Queue0Rx = c.CounterValue
+// 			case "tx_prio0_bytes":
+// 				metrics.Queue0Tx = c.CounterValue
+// 			case "rx_prio5_bytes":
+// 				metrics.Queue5Rx = c.CounterValue
+// 			case "tx_prio5_bytes":
+// 				metrics.Queue5Tx = c.CounterValue
+// 			case "rx_prio0_discards":
+// 				metrics.Queue0Discard = c.CounterValue
+// 			case "rx_prio5_discards":
+// 				metrics.Queue5Discard = c.CounterValue
+// 			case "out_of_sequence":
+// 				metrics.OOS = c.CounterValue
+// 			case "QPNum":
+// 				metrics.QPNum = c.CounterValue
+// 			case "MRNum":
+// 				metrics.MRNum = c.CounterValue
+// 			case "rx_prio5_pause":
+// 				metrics.RxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
+// 			case "tx_prio5_pause":
+// 				metrics.TxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
+// 			case "np_cnp_sent":
+// 				metrics.NpCnpSent = fmt.Sprintf("%d", c.CounterValue)
+// 			case "rp_cnp_handled":
+// 				metrics.RpCnpHandled = fmt.Sprintf("%d", c.CounterValue)
+// 			}
+// 		}
+
+// 		// switch c.CounterName {
+// 		// case "portSpeed":
+// 		// 	metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
+// 		// case "rx_prio0_bytes":
+// 		// 	metrics.Queue0Rx = c.CounterValue
+// 		// case "tx_prio0_bytes":
+// 		// 	metrics.Queue0Tx = c.CounterValue
+// 		// case "rx_prio5_bytes":
+// 		// 	metrics.Queue5Rx = c.CounterValue
+// 		// case "tx_prio5_bytes":
+// 		// 	metrics.Queue5Tx = c.CounterValue
+// 		// case "rx_prio0_discards":
+// 		// 	metrics.Queue0Discard = c.CounterValue
+// 		// case "rx_prio5_discards":
+// 		// 	metrics.Queue5Discard = c.CounterValue
+// 		// case "out_of_sequence":
+// 		// 	metrics.OOS = c.CounterValue
+// 		// case "QPNum":
+// 		// 	metrics.QPNum = c.CounterValue
+// 		// case "MRNum":
+// 		// 	metrics.MRNum = c.CounterValue
+// 		// case "rx_prio5_pause":
+// 		// 	metrics.RxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
+// 		// case "tx_prio5_pause":
+// 		// 	metrics.TxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
+// 		// case "np_cnp_sent":
+// 		// 	metrics.NpCnpSent = fmt.Sprintf("%d", c.CounterValue)
+// 		// case "rp_cnp_handled":
+// 		// 	metrics.RpCnpHandled = fmt.Sprintf("%d", c.CounterValue)
+// 		// }
+// 		currentRawMetrics[c.IBDev] = metrics
+// 	}
+
+// 	// 3. 遍历排序好的设备列表，计算速率并生成行
+// 	for _, deviceName := range deviceOrder {
+// 		currentMetrics, ok := currentRawMetrics[deviceName]
+// 		if !ok {
+// 			continue // 如果没有获取到该设备的数据，则跳过
+// 		}
+// 		currentMetrics.LastUpdated = currentTime
+
+// 		prevMetrics, hasPrevious := previousMetrics[deviceName]
+
+// 		var q0RxGbps, q0TxGbps, q5RxGbps, q5TxGbps float64
+// 		var q0Discard, q5Discard, oos uint64
+
+// 		// 只有在存在上一次数据时，才进行速率计算
+// 		if hasPrevious {
+// 			// 计算时间差（秒）
+// 			duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
+// 			if duration > 0 {
+// 				// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
+// 				q0RxGbps = float64(currentMetrics.Queue0Rx-prevMetrics.Queue0Rx) * 8 / duration / 1e9
+// 				q0TxGbps = float64(currentMetrics.Queue0Tx-prevMetrics.Queue0Tx) * 8 / duration / 1e9
+// 				q5RxGbps = float64(currentMetrics.Queue5Rx-prevMetrics.Queue5Rx) * 8 / duration / 1e9
+// 				q5TxGbps = float64(currentMetrics.Queue5Tx-prevMetrics.Queue5Tx) * 8 / duration / 1e9
+// 				q0Discard = currentMetrics.Queue0Discard - prevMetrics.Queue0Discard
+// 				q5Discard = currentMetrics.Queue5Discard - prevMetrics.Queue5Discard
+// 				oos = currentMetrics.OOS - prevMetrics.OOS
+// 			}
+// 		}
+
+// 		// 生成表格行，使用计算出的速率
+// 		newRows = append(newRows, table.Row{
+// 			currentMetrics.IBDev,
+// 			currentMetrics.PortSpeed,
+// 			fmt.Sprintf("%.2f", q0RxGbps),
+// 			fmt.Sprintf("%.2f", q0TxGbps),
+// 			fmt.Sprintf("%d", q0Discard),
+// 			fmt.Sprintf("%.2f", q5RxGbps),
+// 			fmt.Sprintf("%.2f", q5TxGbps),
+// 			fmt.Sprintf("%d", q5Discard),
+// 			fmt.Sprintf("%d", oos),
+// 			fmt.Sprintf("%d", currentMetrics.QPNum),
+// 			fmt.Sprintf("%d", currentMetrics.MRNum),
+// 			currentMetrics.RxPrio5Pause,
+// 			currentMetrics.TxPrio5Pause,
+// 			currentMetrics.NpCnpSent,
+// 			currentMetrics.RpCnpHandled,
+// 			currentTime.Format("15:04:05"),
+// 		})
+
+// 		newMetricsMap[deviceName] = currentMetrics
+// 	}
+
+// 	return newRows, newMetricsMap
+// }
+
+func initialModel() model {
+
+	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
+	contentStr := string(content)
+	trimmedContent := strings.TrimSpace(contentStr)
+
+	var columnWeights []table.Column
+	if strings.Contains(trimmedContent, "Ethernet") {
+		columnWeights = []table.Column{
+			{Title: "Device", Width: 8},
+			{Title: "Speed", Width: 6},
+			{Title: "Queue 0 RX(Gbps)", Width: 12},
+			{Title: "Queue 0 TX(Gbps)", Width: 12},
+			{Title: "Q0 Discard", Width: 8},
+			{Title: "Queue 5 RX(Gbps)", Width: 12},
+			{Title: "Queue 5 TX(Gbps)", Width: 12},
+			{Title: "Q5 Discard", Width: 8},
+			{Title: "OOS", Width: 5},
+			{Title: "QP Num", Width: 7},
+			{Title: "MR Num", Width: 7},
+			{Title: "RX Pause", Width: 7},
+			{Title: "TX Pause", Width: 7},
+			{Title: "NP CNP Sent", Width: 9},
+			{Title: "RP CNP Handled", Width: 9},
+			{Title: "Time", Width: 8},
+		}
+	}
+	if strings.Contains(trimmedContent, "InfiniBand") {
+		columnWeights = []table.Column{
+			{Title: "Device", Width: 8},
+			{Title: "Speed", Width: 6},
+			{Title: "RX(Gbps)", Width: 12},
+			{Title: "TX(Gbps)", Width: 12},
+			{Title: "OOS", Width: 5},
+			{Title: "QP Num", Width: 7},
+			{Title: "MR Num", Width: 7},
+			{Title: "Time", Width: 8},
+		}
+	}
+
+	discoveredDevices := GetIBDev()
+	sort.Strings(discoveredDevices)
+
+	// 首次运行时，previousMetrics 是空的，所以速率会是 0
+	initialRows, initialMetrics := updateAndCalculateRates(make(map[string]DeviceMetrics), discoveredDevices)
+
+	initialTableWidth := 120 // 使用一个合理的默认值
+	initialColumns := recalculateColumnWidths(columnWeights, initialTableWidth)
+
+	tbl := table.New(
+		table.WithColumns(initialColumns),
+		table.WithRows(initialRows),
+		table.WithHeight(len(discoveredDevices)),
+		table.WithFocused(true),
+	)
+
+	s := table.DefaultStyles()
+	s.Header = s.Header.Bold(true).Foreground(lipgloss.Color("212"))
+	s.Selected = s.Selected.Foreground(lipgloss.Color("229")).Background(lipgloss.Color("57")).Bold(false)
+	tbl.SetStyles(s)
+
+	return model{
+		devices:       initialMetrics,
+		deviceOrder:   discoveredDevices,
+		tbl:           tbl,
+		columnWeights: columnWeights,
+	}
+}
+
 func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrder []string) ([]table.Row, map[string]DeviceMetrics) {
 	newRows := []table.Row{}
 	newMetricsMap := make(map[string]DeviceMetrics)
@@ -102,7 +307,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 
 		metrics := currentRawMetrics[c.IBDev]
 
-		if c.DevLinkType == "Ethernet" {
+		if allCounters[0].DevLinkType == "Ethernet" {
 			switch c.CounterName {
 			case "portSpeed":
 				metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
@@ -135,7 +340,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			}
 		}
 
-		if c.DevLinkType == "InfiniBand" {
+		if allCounters[0].DevLinkType == "InfiniBand" {
 			switch c.CounterName {
 			case "portSpeed":
 				metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
@@ -254,73 +459,6 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 	}
 
 	return newRows, newMetricsMap
-}
-
-func initialModel() model {
-	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
-	contentStr := string(content)
-	trimmedContent := strings.TrimSpace(contentStr)
-
-	var columnWeights []table.Column
-	if strings.Contains(trimmedContent, "Ethernet") {
-		columnWeights = []table.Column{
-			{Title: "Device", Width: 8},
-			{Title: "Speed", Width: 6},
-			{Title: "Queue 0 RX(Gbps)", Width: 12},
-			{Title: "Queue 0 TX(Gbps)", Width: 12},
-			{Title: "Q0 Discard", Width: 8},
-			{Title: "Queue 5 RX(Gbps)", Width: 12},
-			{Title: "Queue 5 TX(Gbps)", Width: 12},
-			{Title: "Q5 Discard", Width: 8},
-			{Title: "OOS", Width: 5},
-			{Title: "QP Num", Width: 7},
-			{Title: "MR Num", Width: 7},
-			{Title: "RX Pause", Width: 7},
-			{Title: "TX Pause", Width: 7},
-			{Title: "NP CNP Sent", Width: 9},
-			{Title: "RP CNP Handled", Width: 9},
-			{Title: "Time", Width: 8},
-		}
-	}
-	if strings.Contains(trimmedContent, "InfiniBand") {
-		columnWeights = []table.Column{
-			{Title: "Device", Width: 8},
-			{Title: "Speed", Width: 6},
-			{Title: "RX(Gbps)", Width: 12},
-			{Title: "TX(Gbps)", Width: 12},
-			{Title: "OOS", Width: 5},
-			{Title: "QP Num", Width: 7},
-			{Title: "MR Num", Width: 7},
-			{Title: "Time", Width: 8},
-		}
-	}
-
-	discoveredDevices := GetIBDev()
-	sort.Strings(discoveredDevices)
-
-	initialRows, initialMetrics := updateAndCalculateRates(make(map[string]DeviceMetrics), discoveredDevices)
-
-	initialTableWidth := 120
-	initialColumns := recalculateColumnWidths(columnWeights, initialTableWidth)
-
-	tbl := table.New(
-		table.WithColumns(initialColumns),
-		table.WithRows(initialRows),
-		table.WithHeight(len(discoveredDevices)),
-		table.WithFocused(true),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true).Foreground(lipgloss.Color("212"))
-	s.Selected = s.Selected.Foreground(lipgloss.Color("229")).Background(lipgloss.Color("57")).Bold(false)
-	tbl.SetStyles(s)
-
-	return model{
-		devices:       initialMetrics,
-		deviceOrder:   discoveredDevices,
-		tbl:           tbl,
-		columnWeights: columnWeights,
-	}
 }
 
 func tickCmd() tea.Cmd {
