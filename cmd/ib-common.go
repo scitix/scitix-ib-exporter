@@ -16,6 +16,7 @@ var (
 type IBCounter struct {
 	IBDev        string `json:"ib_dev"`
 	NetDev       string `json:"net_dev"`
+	DevLinkType  string `json:"dev_link_type"`
 	CounterName  string `json:"counter_name"`
 	CounterValue uint64 `json:"counter_value"`
 }
@@ -118,6 +119,18 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 				log.Printf("Get IBDev:%s, NetDev is:%s", ibCounter.IBDev, ibCounter.NetDev)
 			}
 		}
+
+		// get DevLinkType InfiniBand or Ethernet
+		linkLayerPath := path.Join(IBSYSPATH, perIBDev, "ports/1/link_layer")
+		contents, err := os.ReadFile(linkLayerPath)
+		if err != nil {
+			log.Printf("Fail to ReadFile from path:%s", linkLayerPath)
+			ibCounter.DevLinkType = "Unknown"
+		} else {
+			ibCounter.DevLinkType = strings.ReplaceAll(string(contents), "\n", "")
+			log.Printf("Get IBDev:%s, DevLinkType is:%s", ibCounter.IBDev, ibCounter.DevLinkType)
+		}
+
 		// Get IB port counter
 		counterPath := path.Join(IBSYSPATH, perIBDev, "ports/1", counterType)
 		ibCounterName, err := listFiles(counterPath)

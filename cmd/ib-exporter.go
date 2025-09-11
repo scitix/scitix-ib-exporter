@@ -195,7 +195,6 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
 		}
 
-		// just one net device is expected
 		for _, entry := range entries {
 			if entry.IsDir() {
 				counter.NetDev = entry.Name()
@@ -226,8 +225,11 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 func GetRoceData(allIBDev []string) []IBCounter {
 	var counters []IBCounter
 
-	for i := 0; i < len(allIBDev); i++ {
-		// 获取以太网接口
+	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
+	contentStr := string(content)
+	trimmedContent := strings.TrimSpace(contentStr)
+
+	for i := range allIBDev {
 		netDir := filepath.Join("/sys/class/infiniband", allIBDev[i], "device", "net")
 
 		entries, err := os.ReadDir(netDir)
@@ -241,21 +243,30 @@ func GetRoceData(allIBDev []string) []IBCounter {
 			os.Exit(1)
 		}
 
-		fields := map[string]bool{
-			"rx_prio0_bytes":          true,
-			"tx_prio0_bytes":          true,
-			"rx_prio0_discards":       true,
-			"rx_prio5_bytes":          true,
-			"tx_prio5_bytes":          true,
-			"rx_prio5_discards":       true,
-			"rx_prio0_pause":          true,
-			"rx_prio0_pause_duration": true,
-			"tx_prio0_pause":          true,
-			"tx_prio0_pause_duration": true,
-			"rx_prio5_pause":          true,
-			"rx_prio5_pause_duration": true,
-			"tx_prio5_pause":          true,
-			"tx_prio5_pause_duration": true,
+		var fields map[string]bool
+		if strings.Contains(trimmedContent, "Ethernet") {
+			fields = map[string]bool{
+				"rx_prio0_bytes":          true,
+				"tx_prio0_bytes":          true,
+				"rx_prio0_discards":       true,
+				"rx_prio5_bytes":          true,
+				"tx_prio5_bytes":          true,
+				"rx_prio5_discards":       true,
+				"rx_prio0_pause":          true,
+				"rx_prio0_pause_duration": true,
+				"tx_prio0_pause":          true,
+				"tx_prio0_pause_duration": true,
+				"rx_prio5_pause":          true,
+				"rx_prio5_pause_duration": true,
+				"tx_prio5_pause":          true,
+				"tx_prio5_pause_duration": true,
+			}
+		}
+		if strings.Contains(trimmedContent, "InfiniBand") {
+			fields = map[string]bool{
+				"rx_vport_rdma_unicast_bytes": true,
+				"tx_vport_rdma_unicast_bytes": true,
+			}
 		}
 
 		cmd := exec.Command("ethtool", "-S", entries[0].Name())
@@ -418,10 +429,11 @@ func main() {
 			case <-ticker.C:
 				ibCounters := GetAllIBCounter()
 				for _, counter := range ibCounters {
-					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%d\n",
+					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%d\n",
 						time.Now().UnixNano(),
 						counter.IBDev,
 						counter.NetDev,
+						counter.DevLinkType,
 						counter.CounterName,
 						counter.CounterValue)
 					if err != nil {
