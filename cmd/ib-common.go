@@ -99,9 +99,6 @@ func GetIBDev() []string {
 		// 	continue
 		// }
 		// just add  linkup port IBDev
-		if strings.Contains(ibDev, "mezz") {
-			continue
-		}
 		if isDevActive(ibDev) {
 			activeIBDev = append(activeIBDev, ibDev)
 		}
