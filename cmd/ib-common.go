@@ -19,9 +19,15 @@ type IBCounter struct {
 	DevLinkType  string `json:"dev_link_type"`
 	CounterName  string `json:"counter_name"`
 	CounterValue uint64 `json:"counter_value"`
+	IBDev        string `json:"ib_dev"`
+	NetDev       string `json:"net_dev"`
+	DevLinkType  string `json:"dev_link_type"`
+	CounterName  string `json:"counter_name"`
+	CounterValue uint64 `json:"counter_value"`
 }
 
 func (c *IBCounter) toPrometheusFormat() string {
+	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.CounterName, c.CounterValue)
 	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.CounterName, c.CounterValue)
 }
 
@@ -92,10 +98,10 @@ func GetIBDev() []string {
 		// if !IsIBLink(ibDev) {
 		// 	continue
 		// }
-		// if !IsIBLink(ibDev) {
-		// 	continue
-		// }
 		// just add  linkup port IBDev
+		if strings.Contains(ibDev, "mezz") {
+			continue
+		}
 		if isDevActive(ibDev) {
 			activeIBDev = append(activeIBDev, ibDev)
 		}
@@ -135,6 +141,32 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 			log.Printf("Get IBDev:%s, DevLinkType is:%s", ibCounter.IBDev, ibCounter.DevLinkType)
 		}
 
+
+		netDevPath := path.Join(IBSYSPATH, perIBDev, "device/net/")
+		entries, err := os.ReadDir(netDevPath)
+		if err != nil {
+			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
+		}
+
+		// just one net device is expected
+		for _, entry := range entries {
+			if entry.IsDir() {
+				ibCounter.NetDev = entry.Name()
+				log.Printf("Get IBDev:%s, NetDev is:%s", ibCounter.IBDev, ibCounter.NetDev)
+			}
+		}
+
+		// get DevLinkType InfiniBand or Ethernet
+		linkLayerPath := path.Join(IBSYSPATH, perIBDev, "ports/1/link_layer")
+		contents, err := os.ReadFile(linkLayerPath)
+		if err != nil {
+			log.Printf("Fail to ReadFile from path:%s", linkLayerPath)
+			ibCounter.DevLinkType = "Unknown"
+		} else {
+			ibCounter.DevLinkType = strings.ReplaceAll(string(contents), "\n", "")
+			log.Printf("Get IBDev:%s, DevLinkType is:%s", ibCounter.IBDev, ibCounter.DevLinkType)
+		}
+
 		// Get IB port counter
 		counterPath := path.Join(IBSYSPATH, perIBDev, "ports/1", counterType)
 		ibCounterName, err := listFiles(counterPath)
@@ -144,6 +176,7 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 		}
 		for _, counter := range ibCounterName {
 			// counter Name
+			ibCounter.CounterName = counter
 			ibCounter.CounterName = counter
 
 			counterValuePath := path.Join(counterPath, counter)
@@ -158,6 +191,8 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 				return nil, err
 			}
 
+			ibCounter.CounterValue = value
+			log.Printf("ibDev:%11s, counterName:%35s:%d", ibCounter.IBDev, ibCounter.CounterName, ibCounter.CounterValue)
 			ibCounter.CounterValue = value
 			log.Printf("ibDev:%11s, counterName:%35s:%d", ibCounter.IBDev, ibCounter.CounterName, ibCounter.CounterValue)
 			allCounter = append(allCounter, ibCounter)
