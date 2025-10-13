@@ -460,12 +460,6 @@ func GetAllIBCounter() []IBCounter {
 	portUtil := getPortSpeed(IBDev)
 	ibCounters = append(ibCounters, portUtil...)
 
-	roceData := GetRoceData(IBDev)
-	ibCounters = append(ibCounters, roceData...)
-
-	portUtil := getPortSpeed(IBDev)
-	ibCounters = append(ibCounters, portUtil...)
-
 	return ibCounters
 }
 
