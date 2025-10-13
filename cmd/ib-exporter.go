@@ -451,6 +451,9 @@ func GetAllIBCounter() []IBCounter {
 	QPNums := getQPNum(IBDev)
 	ibCounters = append(ibCounters, QPNums...)
 
+	roceData := GetRoceData(IBDev)
+	ibCounters = append(ibCounters, roceData...)
+
 	MRNums := getMRNum(IBDev)
 	ibCounters = append(ibCounters, MRNums...)
 
