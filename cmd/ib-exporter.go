@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -187,8 +189,8 @@ func GetRoceData(allIBDev []string) []IBCounter {
 				}
 				counters = append(counters, IBCounter{
 					IBDev:        allIBDev[i],
-					counterName:  key,
-					counterValue: num,
+					CounterName:  key,
+					CounterValue: num,
 				})
 			}
 		}
@@ -209,11 +211,11 @@ func GetAllIBCounter() []IBCounter {
 	QPNums := getQPNum(IBDev)
 	ibCounters = append(ibCounters, QPNums...)
 
-	portUtil := getPortSpeed(IBDev)
-	ibCounters = append(ibCounters, portUtil...)
-
 	roceData := GetRoceData(IBDev)
 	ibCounters = append(ibCounters, roceData...)
+
+	portUtil := getPortSpeed(IBDev)
+	ibCounters = append(ibCounters, portUtil...)
 
 	return ibCounters
 }
