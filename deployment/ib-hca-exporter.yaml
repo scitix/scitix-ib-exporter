@@ -1,0 +1,113 @@
+# 资源一：DaemonSet，负责在每个节点上运行 exporter Pod
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  # 关键标签，用于 Service 和 ServiceMonitor 的选择器
+  labels:
+    app: ib-hca-exporter
+  name: ib-hca-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: ib-hca-exporter
+  template:
+    metadata:
+      labels:
+        app: ib-hca-exporter
+    spec:
+      tolerations:
+      - operator: Exists
+      hostPID: true
+      hostNetwork: true
+      containers:
+      - name: ib-hca-exporter
+        image: registry-cn-shanghai.siflow.cn/hisys/ib-hca-exporter:0.0.3
+        imagePullPolicy: Always
+        command:
+        - /usr/bin/env
+        - bash
+        - -c
+        args:
+        - |
+          ib_exporter -port="9316" -log="/var/log/ib_exporter.log" -termi
+        ports:
+        - name: web
+          containerPort: 9316
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+        - name: dev
+          mountPath: /dev
+        - name: sys
+          mountPath: /sys
+      volumes:
+      - name: dev
+        hostPath:
+          path: /dev
+          type: Directory
+      - name: sys
+        hostPath:
+          path: /sys
+          type: Directory
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+---
+# 资源二：Service，为 DaemonSet 创建的 Pod 提供一个发现端点
+apiVersion: v1
+kind: Service
+metadata:
+  # 关键标签，用于 ServiceMonitor 的选择器
+  labels:
+    app: ib-hca-exporter
+  name: ib-hca-exporter
+  namespace: monitoring
+spec:
+  # Headless Service，不分配 ClusterIP，直接返回所有 Pod IP
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: web
+    port: 9316
+    protocol: TCP
+    targetPort: web
+  # 通过这个标签选择上面 DaemonSet 创建的 Pod
+  selector:
+    app: ib-hca-exporter
+---
+# 资源三：ServiceMonitor，告诉 Prometheus 如何去抓取这个 Service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  # Prometheus Operator 可能会通过标签来发现 ServiceMonitor，保留这个有好处
+  labels:
+    app: ib-hca-exporter
+  name: ib-hca-exporter
+  namespace: monitoring
+spec:
+  # 通过这个标签选择上面的 Service
+  selector:
+    matchLabels:
+      app: ib-hca-exporter
+  endpoints:
+  - port: web
+    interval: 1m
+    scrapeTimeout: 50s
+    relabelings:
+    - sourceLabels: [ __meta_kubernetes_pod_node_name ]
+      targetLabel: instance
+      action: replace
+      regex: (.*)
+      replacement: $1
