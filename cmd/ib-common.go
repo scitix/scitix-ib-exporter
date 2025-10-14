@@ -5,12 +5,39 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
 var (
 	IBSYSPATH = "/sys/class/infiniband/"
+	tempRegex = regexp.MustCompile(`Temperature
+$$
+C
+$$
+\s*:\s*([\d\.]+)`)
+	voltRegex = regexp.MustCompile(`Voltage
+$$
+mV
+$$
+\s*:\s*([\d\.]+)`)
+	biasRegex = regexp.MustCompile(`Bias Current
+$$
+mA
+$$
+\s*:\s*([\d\.,\s]+)`)
+	rxPowerRegex = regexp.MustCompile(`Rx Power Current
+$$
+dBm
+$$
+\s*:\s*([\d\.,\s-]+)`)
+	txPowerRegex = regexp.MustCompile(`Tx Power Current
+$$
+dBm
+$$
+\s*:\s*([\d\.,\s-]+)`)
+	linkTypeRegex = regexp.MustCompile(`Cable Type\s*:\s*(.+)`)
 )
 
 type IBCounter struct {
@@ -77,6 +104,19 @@ func IsIBLink(IBDev string) bool {
 		log.Printf("Get IBDev:%s, ==>InfiniBand Link_layer, link_layer:%s<==", IBDev, strings.ReplaceAll(string(contents), "\n", ""))
 		return true
 	}
+	return false
+}
+func isPhysicalIBDevice(deviceName string) bool {
+	filePath := fmt.Sprintf("/sys/class/infiniband/%s/device/sriov_numvfs", deviceName)
+	_, err := os.Stat(filePath)
+	if err == nil {
+
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	log.Printf("Warning: Could not check device type for %s due to an error: %v. Assuming it's not a physical device.\n", deviceName, err)
 	return false
 }
 
