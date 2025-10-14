@@ -41,15 +41,15 @@ $$
 )
 
 type IBCounter struct {
-	IBDev        string `json:"ib_dev"`
-	NetDev       string `json:"net_dev"`
-	DevLinkType  string `json:"dev_link_type"`
-	CounterName  string `json:"counter_name"`
-	CounterValue uint64 `json:"counter_value"`
+	IBDev        string  `json:"ib_dev"`
+	NetDev       string  `json:"net_dev"`
+	DevLinkType  string  `json:"dev_link_type"`
+	CounterName  string  `json:"counter_name"`
+	CounterValue float64 `json:"counter_value"`
 }
 
 func (c *IBCounter) toPrometheusFormat() string {
-	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.CounterName, c.CounterValue)
+	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %f", c.IBDev, c.CounterName, c.CounterValue)
 }
 
 func countersToPrometheusFormat(counters []IBCounter) string {
@@ -193,14 +193,14 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 				log.Printf("Fail to read the ib counter from path: %s", counterValuePath)
 			}
 			// counter Value
-			value, err := strconv.ParseUint(strings.ReplaceAll(string(contents), "\n", ""), 10, 64)
+			value, err := strconv.ParseFloat(strings.ReplaceAll(string(contents), "\n", ""), 10)
 			if err != nil {
-				log.Fatal("Error covering string to uint64")
+				log.Fatal("Error covering string to float64")
 				return nil, err
 			}
 
 			ibCounter.CounterValue = value
-			log.Printf("ibDev:%11s, counterName:%35s:%d", ibCounter.IBDev, ibCounter.CounterName, ibCounter.CounterValue)
+			log.Printf("ibDev:%11s, counterName:%35s:%f", ibCounter.IBDev, ibCounter.CounterName, ibCounter.CounterValue)
 			allCounter = append(allCounter, ibCounter)
 		}
 	}
