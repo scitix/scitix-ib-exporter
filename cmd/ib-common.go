@@ -22,7 +22,7 @@ type IBCounter struct {
 }
 
 func (c *IBCounter) toPrometheusFormat() string {
-	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.counterName, c.counterValue)
+	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.CounterName, c.CounterValue)
 }
 
 func countersToPrometheusFormat(counters []IBCounter) string {
