@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -225,7 +226,8 @@ func recalculateColumnWidths(weights []table.Column, availableWidth int) []table
 
 func initialModel() model {
 
-	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
+	IBDevs := GetIBDev()
+	content, _ := os.ReadFile(path.Join("/sys/class/infiniband/", IBDevs[0], "ports", "1", "link_layer"))
 	contentStr := string(content)
 	trimmedContent := strings.TrimSpace(contentStr)
 

@@ -336,7 +336,7 @@ func parseMlxlinkOutput(output string, ibDev string) []IBCounter {
 func GetRoceData(allIBDev []string) []IBCounter {
 	var counters []IBCounter
 
-	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
+	content, _ := os.ReadFile(path.Join("/sys/class/infiniband/", allIBDev[0], "ports", "1", "link_layer"))
 	contentStr := string(content)
 	trimmedContent := strings.TrimSpace(contentStr)
 
