@@ -117,7 +117,7 @@ func getMRNum(allIBDev []string) []IBCounter {
 
 		// 5. 将字符串数值转换为整数
 		// qp, err1 := strconv.Atoi(matches[2])
-		mr, err2 := strconv.ParseUint(matches[3], 10, 64)
+		mr, err2 := strconv.ParseFloat(matches[3], 10)
 
 		if err2 != nil {
 			return counters
@@ -138,7 +138,7 @@ func getMRNum(allIBDev []string) []IBCounter {
 		counter.IBDev = IBDev
 		counter.CounterName = "MRNum"
 		counter.CounterValue = mr
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
+		log.Printf("ibDev:%11s, counterName:%35s:%f", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
@@ -149,7 +149,7 @@ func getQPNum(allIBDev []string) []IBCounter {
 
 	for _, IBDev := range allIBDev {
 		var counter IBCounter
-		var QPNum uint64
+		var QPNum float64
 		bdf := GetIBDevBDF(IBDev)
 		qpPath := path.Join("/sys/kernel/debug/mlx5", bdf, "QPs")
 		entries, err := os.ReadDir(qpPath)
@@ -179,7 +179,7 @@ func getQPNum(allIBDev []string) []IBCounter {
 		counter.IBDev = IBDev
 		counter.CounterName = "QPNum"
 		counter.CounterValue = QPNum
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
+		log.Printf("ibDev:%11s, counterName:%35s:%f", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
@@ -217,7 +217,7 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 		if strings.Contains(rate, "400") {
 			counter.CounterValue = 400000
 		}
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
+		log.Printf("ibDev:%11s, counterName:%35s:%f", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
@@ -290,9 +290,9 @@ func parseMlxlinkOutput(output string, ibDev string) []IBCounter {
 				IBDev:        ibDev,
 				DevLinkType:  devLinkType, // devLinkType 会在主循环中被填充
 				CounterName:  counterName,
-				CounterValue: uint64(valFloat * multiplier),
+				CounterValue: float64(valFloat * multiplier),
 			})
-			log.Printf("ibDev:%11s, counterName:%35s:%d", ibDev, counterName, uint64(valFloat*multiplier))
+			log.Printf("ibDev:%11s, counterName:%35s:%f", ibDev, counterName, float64(valFloat*multiplier))
 
 			// 恢复你之前的打印格式
 			// fmt.Printf("ibDev:%11s, counterName:%35s:%d\n", ibDev, counterName, uint64(valFloat*multiplier))
@@ -401,7 +401,7 @@ func GetRoceData(allIBDev []string) []IBCounter {
 			val := strings.TrimSpace(parts[1])
 
 			if _, ok := fields[key]; ok {
-				num, err := strconv.ParseUint(val, 10, 64)
+				num, err := strconv.ParseFloat(val, 10)
 				if err != nil {
 					continue // or log parse error
 				}
@@ -534,7 +534,7 @@ func main() {
 
 		ibCounters := GetAllIBCounter()
 		for _, counter := range ibCounters {
-			_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%d\n",
+			_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%f\n",
 				time.Now().UnixNano(),
 				counter.IBDev,
 				counter.NetDev,
@@ -588,7 +588,7 @@ func main() {
 			case <-ticker.C:
 				ibCounters := GetAllIBCounter()
 				for _, counter := range ibCounters {
-					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%d\n",
+					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%f\n",
 						time.Now().UnixNano(),
 						counter.IBDev,
 						counter.NetDev,
