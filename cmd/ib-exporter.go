@@ -224,33 +224,24 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 }
 
 func getPortOpticalInfo(allIBDev []string) []IBCounter {
-	var wg sync.WaitGroup
-	var mu sync.Mutex
 	var allCounters []IBCounter
 
 	for _, device := range allIBDev {
 		if !isPhysicalIBDevice(device) {
 			continue
 		}
-		wg.Add(1)
-		go func(dev string) {
-			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			cmd := exec.CommandContext(ctx, "mlxlink", "-d", dev, "-m")
-			output, err := cmd.Output()
-			if err != nil {
-				fmt.Printf("Error executing mlxlink for device %s: %v\n", dev, err)
-				return
-			}
-			counters := parseMlxlinkOutput(string(output), dev)
-			mu.Lock()
-			allCounters = append(allCounters, counters...)
-			mu.Unlock()
-		}(device)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "mlxlink", "-d", device, "-m")
+		output, err := cmd.Output()
+		if err != nil {
+			fmt.Printf("Error executing mlxlink for device %s: %v\n", device, err)
+			return nil
+		}
+		counters := parseMlxlinkOutput(string(output), device)
+		allCounters = append(allCounters, counters...)
 	}
 
-	wg.Wait()
 	return allCounters
 }
 
@@ -441,7 +432,6 @@ func GetAllIBCounter() []IBCounter {
 
 	opticalInfo := getPortOpticalInfo(IBDevs)
 	ibCounters = append(ibCounters, opticalInfo...)
-	// fmt.Println(opticalInfo)
 
 	return ibCounters
 }
