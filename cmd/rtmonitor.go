@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -18,17 +19,17 @@ type tickMsg time.Time
 type DeviceMetrics struct {
 	IBDev         string
 	PortSpeed     string // 端口速率通常是固定值，保持 string 即可
-	RX            uint64
-	TX            uint64
-	Queue0Rx      uint64
-	Queue0Tx      uint64
-	Queue5Rx      uint64
-	Queue5Tx      uint64
-	Queue0Discard uint64
-	Queue5Discard uint64
-	OOS           uint64
-	QPNum         uint64
-	MRNum         uint64
+	RX            float64
+	TX            float64
+	Queue0Rx      float64
+	Queue0Tx      float64
+	Queue5Rx      float64
+	Queue5Tx      float64
+	Queue0Discard float64
+	Queue5Discard float64
+	OOS           float64
+	QPNum         float64
+	MRNum         float64
 	RxPrio5Pause  string
 	TxPrio5Pause  string
 	NpCnpSent     string
@@ -89,7 +90,8 @@ func recalculateColumnWidths(weights []table.Column, availableWidth int) []table
 
 func initialModel() model {
 
-	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
+	IBDevs := GetIBDev()
+	content, _ := os.ReadFile(path.Join("/sys/class/infiniband/", IBDevs[0], "ports", "1", "link_layer"))
 	contentStr := string(content)
 	trimmedContent := strings.TrimSpace(contentStr)
 
@@ -173,7 +175,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 		if allCounters[0].DevLinkType == "Ethernet" {
 			switch c.CounterName {
 			case "portSpeed":
-				metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
+				metrics.PortSpeed = fmt.Sprintf("%f", c.CounterValue)
 			case "rx_prio0_bytes":
 				metrics.Queue0Rx = c.CounterValue
 			case "tx_prio0_bytes":
@@ -193,20 +195,20 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			case "MRNum":
 				metrics.MRNum = c.CounterValue
 			case "rx_prio5_pause":
-				metrics.RxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
+				metrics.RxPrio5Pause = fmt.Sprintf("%f", c.CounterValue)
 			case "tx_prio5_pause":
-				metrics.TxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
+				metrics.TxPrio5Pause = fmt.Sprintf("%f", c.CounterValue)
 			case "np_cnp_sent":
-				metrics.NpCnpSent = fmt.Sprintf("%d", c.CounterValue)
+				metrics.NpCnpSent = fmt.Sprintf("%f", c.CounterValue)
 			case "rp_cnp_handled":
-				metrics.RpCnpHandled = fmt.Sprintf("%d", c.CounterValue)
+				metrics.RpCnpHandled = fmt.Sprintf("%f", c.CounterValue)
 			}
 		}
 
 		if allCounters[0].DevLinkType == "InfiniBand" {
 			switch c.CounterName {
 			case "portSpeed":
-				metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
+				metrics.PortSpeed = fmt.Sprintf("%f", c.CounterValue)
 			case "port_rcv_data":
 				metrics.RX = c.CounterValue
 			case "port_xmit_data":
@@ -234,7 +236,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			prevMetrics, hasPrevious := previousMetrics[deviceName]
 
 			var q0RxGbps, q0TxGbps, q5RxGbps, q5TxGbps float64
-			var q0Discard, q5Discard, oos uint64
+			var q0Discard, q5Discard, oos float64
 
 			if hasPrevious {
 
@@ -258,13 +260,13 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 				currentMetrics.PortSpeed,
 				fmt.Sprintf("%.2f", q0RxGbps),
 				fmt.Sprintf("%.2f", q0TxGbps),
-				fmt.Sprintf("%d", q0Discard),
+				fmt.Sprintf("%f", q0Discard),
 				fmt.Sprintf("%.2f", q5RxGbps),
 				fmt.Sprintf("%.2f", q5TxGbps),
-				fmt.Sprintf("%d", q5Discard),
-				fmt.Sprintf("%d", oos),
-				fmt.Sprintf("%d", currentMetrics.QPNum),
-				fmt.Sprintf("%d", currentMetrics.MRNum),
+				fmt.Sprintf("%f", q5Discard),
+				fmt.Sprintf("%f", oos),
+				fmt.Sprintf("%f", currentMetrics.QPNum),
+				fmt.Sprintf("%f", currentMetrics.MRNum),
 				currentMetrics.RxPrio5Pause,
 				currentMetrics.TxPrio5Pause,
 				currentMetrics.NpCnpSent,
@@ -287,7 +289,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			prevMetrics, hasPrevious := previousMetrics[deviceName]
 
 			var rx, tx float64
-			var oos uint64
+			var oos float64
 
 			if hasPrevious {
 				duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
@@ -304,9 +306,9 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 				currentMetrics.PortSpeed,
 				fmt.Sprintf("%.2f", rx),
 				fmt.Sprintf("%.2f", tx),
-				fmt.Sprintf("%d", oos),
-				fmt.Sprintf("%d", currentMetrics.QPNum),
-				fmt.Sprintf("%d", currentMetrics.MRNum),
+				fmt.Sprintf("%f", oos),
+				fmt.Sprintf("%f", currentMetrics.QPNum),
+				fmt.Sprintf("%f", currentMetrics.MRNum),
 				currentTime.Format("15:04:05"),
 			})
 

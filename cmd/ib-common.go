@@ -5,24 +5,51 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
 var (
 	IBSYSPATH = "/sys/class/infiniband/"
+	tempRegex = regexp.MustCompile(`Temperature
+$$
+C
+$$
+\s*:\s*([\d\.]+)`)
+	voltRegex = regexp.MustCompile(`Voltage
+$$
+mV
+$$
+\s*:\s*([\d\.]+)`)
+	biasRegex = regexp.MustCompile(`Bias Current
+$$
+mA
+$$
+\s*:\s*([\d\.,\s]+)`)
+	rxPowerRegex = regexp.MustCompile(`Rx Power Current
+$$
+dBm
+$$
+\s*:\s*([\d\.,\s-]+)`)
+	txPowerRegex = regexp.MustCompile(`Tx Power Current
+$$
+dBm
+$$
+\s*:\s*([\d\.,\s-]+)`)
+	linkTypeRegex = regexp.MustCompile(`Cable Type\s*:\s*(.+)`)
 )
 
 type IBCounter struct {
-	IBDev        string `json:"ib_dev"`
-	NetDev       string `json:"net_dev"`
-	DevLinkType  string `json:"dev_link_type"`
-	CounterName  string `json:"counter_name"`
-	CounterValue uint64 `json:"counter_value"`
+	IBDev        string  `json:"ib_dev"`
+	NetDev       string  `json:"net_dev"`
+	DevLinkType  string  `json:"dev_link_type"`
+	CounterName  string  `json:"counter_name"`
+	CounterValue float64 `json:"counter_value"`
 }
 
 func (c *IBCounter) toPrometheusFormat() string {
-	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %d", c.IBDev, c.CounterName, c.CounterValue)
+	return fmt.Sprintf("ib_hca_counter{device=\"%s\", counter_name=\"%s\"} %f", c.IBDev, c.CounterName, c.CounterValue)
 }
 
 func countersToPrometheusFormat(counters []IBCounter) string {
@@ -77,6 +104,19 @@ func IsIBLink(IBDev string) bool {
 		log.Printf("Get IBDev:%s, ==>InfiniBand Link_layer, link_layer:%s<==", IBDev, strings.ReplaceAll(string(contents), "\n", ""))
 		return true
 	}
+	return false
+}
+func isPhysicalIBDevice(deviceName string) bool {
+	filePath := fmt.Sprintf("/sys/class/infiniband/%s/device/sriov_numvfs", deviceName)
+	_, err := os.Stat(filePath)
+	if err == nil {
+
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	log.Printf("Warning: Could not check device type for %s due to an error: %v. Assuming it's not a physical device.\n", deviceName, err)
 	return false
 }
 
@@ -153,14 +193,14 @@ func GetIBCounter(allIBDev []string, counterType string) ([]IBCounter, error) {
 				log.Printf("Fail to read the ib counter from path: %s", counterValuePath)
 			}
 			// counter Value
-			value, err := strconv.ParseUint(strings.ReplaceAll(string(contents), "\n", ""), 10, 64)
+			value, err := strconv.ParseFloat(strings.ReplaceAll(string(contents), "\n", ""), 10)
 			if err != nil {
-				log.Fatal("Error covering string to uint64")
+				log.Fatal("Error covering string to float64")
 				return nil, err
 			}
 
 			ibCounter.CounterValue = value
-			log.Printf("ibDev:%11s, counterName:%35s:%d", ibCounter.IBDev, ibCounter.CounterName, ibCounter.CounterValue)
+			log.Printf("ibDev:%11s, counterName:%35s:%f", ibCounter.IBDev, ibCounter.CounterName, ibCounter.CounterValue)
 			allCounter = append(allCounter, ibCounter)
 		}
 	}
