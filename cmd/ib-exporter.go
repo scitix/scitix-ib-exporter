@@ -494,8 +494,8 @@ func GetAllIBCounter() []IBCounter {
 	portUtil := getPortSpeed(IBDevs)
 	ibCounters = append(ibCounters, portUtil...)
 
-	opticalInfo := getPortOpticalInfo(IBDevs)
-	ibCounters = append(ibCounters, opticalInfo...)
+	// opticalInfo := getPortOpticalInfo(IBDevs)
+	// ibCounters = append(ibCounters, opticalInfo...)
 
 	return ibCounters
 }
