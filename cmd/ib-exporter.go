@@ -436,7 +436,6 @@ func main() {
 	logfile := flag.String("log", "/var/log/ib-exporter.log", "log file path")
 	termi := flag.Bool("termi", false, "Print log to terminal and file")
 	runonce := flag.Bool("runonce", false, "Run once and exit")
-	runtry := flag.Bool("try", false, "try run once and exit")
 	runDuration := flag.Int("t", 5, "The total time for the task to run")
 	archiveThresholdMB := flag.Int("r", 5, "The size threshold in MB for archiving the data folder")
 	dataPath := flag.String("datapath", "/var/log/ibtestdata", "Path for storing data files")
@@ -470,99 +469,12 @@ func main() {
 	}
 	log.SetOutput(logOutput)
 
-	// monitor mode with in cmdline
 	if *monitor {
 		p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 		if _, err := p.Run(); err != nil {
 			log.Fatalf("fail to load the app: %v", err)
 		}
 		os.Exit(0)
-	}
-
-	if *runtry {
-		// testdataDir := filepath.Join("/var/log", "ibtestdata")
-		testdataDir := *dataPath
-		err := os.MkdirAll(testdataDir, 0755)
-		if err != nil {
-			log.Fatalf("Fatal: Could not create 'testdata' directory: %v", err)
-		}
-
-		log.Println("Checking data directory for potential archiving...")
-		thresholdBytes := int64(*archiveThresholdMB) * 1024 * 1024
-
-		archiveDir := filepath.Dir(testdataDir)
-		if err := manageDataArchives(testdataDir, archiveDir, thresholdBytes); err != nil {
-			log.Fatalf("Fatal: Failed to manage data archives: %v", err)
-		}
-
-		timestamp := time.Now().Format("20060102_150405")
-		dataFilename := fmt.Sprintf("data_%s.log", timestamp)
-		finalDataPath := filepath.Join(testdataDir, dataFilename)
-		dataFile, err := os.Create(finalDataPath)
-		if err != nil {
-			log.Fatalf("Fatal: Could not create data log file: %v", err)
-		}
-		defer dataFile.Close()
-
-		log.Printf("Run-once mode activated. Writing data to %s", finalDataPath)
-
-		ibCounters := GetAllIBCounter()
-		for _, counter := range ibCounters {
-			_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%f\n",
-				time.Now().UnixNano(),
-				counter.IBDev,
-				counter.NetDev,
-				counter.DevLinkType,
-				counter.CounterName,
-				counter.CounterValue)
-			if err != nil {
-				log.Printf("Error writing to log file: %v", err)
-			}
-		}
-		return
-	}
-
-	if *runonce {
-		// testdataDir := filepath.Join("/var/log", "ibtestdata")
-		testdataDir := *dataPath
-		err := os.MkdirAll(testdataDir, 0755)
-		if err != nil {
-			log.Fatalf("Fatal: Could not create 'testdata' directory: %v", err)
-		}
-
-		log.Println("Checking data directory for potential archiving...")
-		thresholdBytes := int64(*archiveThresholdMB) * 1024 * 1024
-
-		archiveDir := filepath.Dir(testdataDir)
-		if err := manageDataArchives(testdataDir, archiveDir, thresholdBytes); err != nil {
-			log.Fatalf("Fatal: Failed to manage data archives: %v", err)
-		}
-
-		timestamp := time.Now().Format("20060102_150405")
-		dataFilename := fmt.Sprintf("data_%s.log", timestamp)
-		finalDataPath := filepath.Join(testdataDir, dataFilename)
-		dataFile, err := os.Create(finalDataPath)
-		if err != nil {
-			log.Fatalf("Fatal: Could not create data log file: %v", err)
-		}
-		defer dataFile.Close()
-
-		log.Printf("Run-once mode activated. Writing data to %s", finalDataPath)
-
-		ibCounters := GetAllIBCounter()
-		for _, counter := range ibCounters {
-			_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%d\n",
-				time.Now().UnixNano(),
-				counter.IBDev,
-				counter.NetDev,
-				counter.DevLinkType,
-				counter.CounterName,
-				counter.CounterValue)
-			if err != nil {
-				log.Printf("Error writing to log file: %v", err)
-			}
-		}
-		return
 	}
 
 	// just for hi-precision data collection and archiving interval:100ms
