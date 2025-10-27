@@ -217,6 +217,15 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 	return counters
 }
 
+func execOnHost(ctx context.Context, name string, args ...string) ([]byte, error) {
+	// 构建完整的命令参数
+	nsenterArgs := []string{"-t", "1", "-m", "-u", "-n", "-i", "-p", "--", name}
+	nsenterArgs = append(nsenterArgs, args...)
+
+	cmd := exec.CommandContext(ctx, "nsenter", nsenterArgs...)
+	return cmd.Output()
+}
+
 func getPortOpticalInfo(allIBDev []string) []IBCounter {
 	var allCounters []IBCounter
 
@@ -226,11 +235,11 @@ func getPortOpticalInfo(allIBDev []string) []IBCounter {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "mlxlink", "-d", device, "-m")
-		output, err := cmd.Output()
+
+		output, err := execOnHost(ctx, "mlxlink", "-d", device, "-m")
 		if err != nil {
 			fmt.Printf("Error executing mlxlink for device %s: %v\n", device, err)
-			return nil
+			continue
 		}
 		counters := parseMlxlinkOutput(string(output), device)
 		allCounters = append(allCounters, counters...)
