@@ -129,11 +129,7 @@ func GetIBDev() []string {
 
 	var activeIBDev []string
 	for _, ibDev := range allIBDev {
-		// just add  linkup port IBDev
-		// if !IsIBLink(ibDev) {
-		// 	continue
-		// }
-		// skip mezzanine card IBDev
+		// skip virtual functions and mezz devices
 		if strings.Contains(ibDev, "mezz") {
 			continue
 		}
