@@ -27,8 +27,7 @@ import (
 )
 
 var (
-	Version = "0.0.2"
-	// ibRegistry     *prometheus.Registry
+	Version        = "0.0.3"
 	ibcounterGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "node_ib_counters",
@@ -145,7 +144,6 @@ func getMRNum(allIBDev []string) []IBCounter {
 
 func getQPNum(allIBDev []string) []IBCounter {
 	var counters []IBCounter
-
 	for _, IBDev := range allIBDev {
 		var counter IBCounter
 		var QPNum uint64
@@ -156,7 +154,6 @@ func getQPNum(allIBDev []string) []IBCounter {
 			log.Printf("fail to read pat:%s, err:%v", qpPath, err)
 			return counters
 		}
-
 		for _, entry := range entries {
 			if entry.IsDir() {
 				QPNum++
@@ -167,7 +164,6 @@ func getQPNum(allIBDev []string) []IBCounter {
 		if err != nil {
 			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
 		}
-
 		// just one net device is expected
 		for _, entry := range entries {
 			if entry.IsDir() {
@@ -186,7 +182,6 @@ func getQPNum(allIBDev []string) []IBCounter {
 
 func getPortSpeed(allIBDev []string) []IBCounter {
 	var counters []IBCounter
-
 	for i := range allIBDev {
 		var counter IBCounter
 		netDevPath := path.Join(IBSYSPATH, allIBDev[i], "device/net/")
@@ -194,7 +189,6 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 		if err != nil {
 			log.Fatalf("error: fail to read path %s: %v", netDevPath, err)
 		}
-
 		for _, entry := range entries {
 			if entry.IsDir() {
 				counter.NetDev = entry.Name()
@@ -203,7 +197,6 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 		}
 		counter.IBDev = allIBDev[i]
 		counter.CounterName = "portSpeed"
-
 		ratePath := path.Join("/sys/class/infiniband", allIBDev[i], "ports/1/rate")
 		rateByte, err := os.ReadFile(ratePath)
 		if err != nil {
@@ -224,25 +217,20 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 
 func GetRoceData(allIBDev []string) []IBCounter {
 	var counters []IBCounter
-
 	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
 	contentStr := string(content)
 	trimmedContent := strings.TrimSpace(contentStr)
-
 	for i := range allIBDev {
 		netDir := filepath.Join("/sys/class/infiniband", allIBDev[i], "device", "net")
-
 		entries, err := os.ReadDir(netDir)
 		if err != nil {
 			log.Printf("Failed to read %s: %v\n", netDir, err)
 			os.Exit(1)
 		}
-
 		if len(entries) != 1 {
 			log.Printf("Expected one net interface for %s, found %d\n", allIBDev[i], len(entries))
 			os.Exit(1)
 		}
-
 		var fields map[string]bool
 		if strings.Contains(trimmedContent, "Ethernet") {
 			fields = map[string]bool{
@@ -268,17 +256,14 @@ func GetRoceData(allIBDev []string) []IBCounter {
 				"tx_vport_rdma_unicast_bytes": true,
 			}
 		}
-
 		cmd := exec.Command("ethtool", "-S", entries[0].Name())
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			return nil
 		}
-
 		if err := cmd.Start(); err != nil {
 			return nil
 		}
-
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
@@ -292,7 +277,7 @@ func GetRoceData(allIBDev []string) []IBCounter {
 			if _, ok := fields[key]; ok {
 				num, err := strconv.ParseUint(val, 10, 64)
 				if err != nil {
-					continue // or log parse error
+					continue
 				}
 				counters = append(counters, IBCounter{
 					IBDev:        allIBDev[i],
@@ -315,35 +300,26 @@ func GetRoceData(allIBDev []string) []IBCounter {
 func GetAllIBCounter() []IBCounter {
 	IBDev := GetIBDev()
 	ibCounters := getIBDevCounter(IBDev)
-
 	QPNums := getQPNum(IBDev)
 	ibCounters = append(ibCounters, QPNums...)
-
 	MRNums := getMRNum(IBDev)
 	ibCounters = append(ibCounters, MRNums...)
-
 	roceData := GetRoceData(IBDev)
 	ibCounters = append(ibCounters, roceData...)
-
 	portUtil := getPortSpeed(IBDev)
 	ibCounters = append(ibCounters, portUtil...)
-
 	return ibCounters
 }
 
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("=========> start to get ib counter in service<==========")
-
 	ibCounters := GetAllIBCounter()
-
 	updateMetrics(ibCounters)
-
 	h := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{})
 	h.ServeHTTP(w, r)
 }
 
 func main() {
-	// command line define
 	port := flag.String("port", "9315", "port to run the server on")
 	logfile := flag.String("log", "/var/log/ib-exporter.log", "log file path")
 	termi := flag.Bool("termi", false, "Print log to terminal and file")
@@ -360,7 +336,7 @@ func main() {
 		return
 	}
 
-	// log setting
+	// for debugging, log to terminal and file
 	var logOutput io.Writer
 	if *termi {
 		logOutput = io.MultiWriter(os.Stdout, &lumberjack.Logger{
@@ -381,6 +357,7 @@ func main() {
 	}
 	log.SetOutput(logOutput)
 
+	// monitor mode with in cmdline
 	if *monitor {
 		p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 		if _, err := p.Run(); err != nil {
@@ -389,8 +366,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	// just for hi-precision data collection and archiving interval:100ms
 	if *runonce {
-		// testdataDir := filepath.Join("/var/log", "ibtestdata")
 		testdataDir := *dataPath
 		err := os.MkdirAll(testdataDir, 0755)
 		if err != nil {
