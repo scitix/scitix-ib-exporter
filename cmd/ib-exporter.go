@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	Version = "0.0.3"
+	Version = "0.0.5"
 	// ibRegistry     *prometheus.Registry
 	ibcounterGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
