@@ -22,11 +22,10 @@ spec:
       hostNetwork: true
       containers:
       - name: ib-hca-exporter
-        image: registry-cn-shanghai.siflow.cn/hisys/ib-hca-exporter:0.0.3
+        image: registry-cn-shanghai.siflow.cn/hisys/net/ib-hca-exporter:0.1.4
         imagePullPolicy: Always
         command:
-        - /usr/bin/env
-        - bash
+        - sh
         - -c
         args:
         - |
