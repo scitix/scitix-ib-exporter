@@ -87,142 +87,6 @@ func recalculateColumnWidths(weights []table.Column, availableWidth int) []table
 	return newColumns
 }
 
-// func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrder []string) ([]table.Row, map[string]DeviceMetrics) {
-// 	newRows := []table.Row{}
-// 	newMetricsMap := make(map[string]DeviceMetrics)
-
-// 	allCounters := GetAllIBCounter()
-// 	fmt.Println("Debug: Total Counters Fetched:", len(allCounters), allCounters[0].DevLinkType)
-// 	currentTime := time.Now()
-
-// 	currentRawMetrics := make(map[string]DeviceMetrics)
-// 	for _, c := range allCounters {
-// 		if _, exists := currentRawMetrics[c.IBDev]; !exists {
-// 			currentRawMetrics[c.IBDev] = DeviceMetrics{IBDev: c.IBDev}
-// 		}
-// 		metrics := currentRawMetrics[c.IBDev]
-
-// 		if strings.Contains(allCounters[0].DevLinkType, "Ethernet") {
-// 			switch c.CounterName {
-// 			case "portSpeed":
-// 				metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
-// 			case "rx_prio0_bytes":
-// 				metrics.Queue0Rx = c.CounterValue
-// 			case "tx_prio0_bytes":
-// 				metrics.Queue0Tx = c.CounterValue
-// 			case "rx_prio5_bytes":
-// 				metrics.Queue5Rx = c.CounterValue
-// 			case "tx_prio5_bytes":
-// 				metrics.Queue5Tx = c.CounterValue
-// 			case "rx_prio0_discards":
-// 				metrics.Queue0Discard = c.CounterValue
-// 			case "rx_prio5_discards":
-// 				metrics.Queue5Discard = c.CounterValue
-// 			case "out_of_sequence":
-// 				metrics.OOS = c.CounterValue
-// 			case "QPNum":
-// 				metrics.QPNum = c.CounterValue
-// 			case "MRNum":
-// 				metrics.MRNum = c.CounterValue
-// 			case "rx_prio5_pause":
-// 				metrics.RxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
-// 			case "tx_prio5_pause":
-// 				metrics.TxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
-// 			case "np_cnp_sent":
-// 				metrics.NpCnpSent = fmt.Sprintf("%d", c.CounterValue)
-// 			case "rp_cnp_handled":
-// 				metrics.RpCnpHandled = fmt.Sprintf("%d", c.CounterValue)
-// 			}
-// 		}
-
-// 		// switch c.CounterName {
-// 		// case "portSpeed":
-// 		// 	metrics.PortSpeed = fmt.Sprintf("%d", c.CounterValue)
-// 		// case "rx_prio0_bytes":
-// 		// 	metrics.Queue0Rx = c.CounterValue
-// 		// case "tx_prio0_bytes":
-// 		// 	metrics.Queue0Tx = c.CounterValue
-// 		// case "rx_prio5_bytes":
-// 		// 	metrics.Queue5Rx = c.CounterValue
-// 		// case "tx_prio5_bytes":
-// 		// 	metrics.Queue5Tx = c.CounterValue
-// 		// case "rx_prio0_discards":
-// 		// 	metrics.Queue0Discard = c.CounterValue
-// 		// case "rx_prio5_discards":
-// 		// 	metrics.Queue5Discard = c.CounterValue
-// 		// case "out_of_sequence":
-// 		// 	metrics.OOS = c.CounterValue
-// 		// case "QPNum":
-// 		// 	metrics.QPNum = c.CounterValue
-// 		// case "MRNum":
-// 		// 	metrics.MRNum = c.CounterValue
-// 		// case "rx_prio5_pause":
-// 		// 	metrics.RxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
-// 		// case "tx_prio5_pause":
-// 		// 	metrics.TxPrio5Pause = fmt.Sprintf("%d", c.CounterValue)
-// 		// case "np_cnp_sent":
-// 		// 	metrics.NpCnpSent = fmt.Sprintf("%d", c.CounterValue)
-// 		// case "rp_cnp_handled":
-// 		// 	metrics.RpCnpHandled = fmt.Sprintf("%d", c.CounterValue)
-// 		// }
-// 		currentRawMetrics[c.IBDev] = metrics
-// 	}
-
-// 	// 3. 遍历排序好的设备列表，计算速率并生成行
-// 	for _, deviceName := range deviceOrder {
-// 		currentMetrics, ok := currentRawMetrics[deviceName]
-// 		if !ok {
-// 			continue // 如果没有获取到该设备的数据，则跳过
-// 		}
-// 		currentMetrics.LastUpdated = currentTime
-
-// 		prevMetrics, hasPrevious := previousMetrics[deviceName]
-
-// 		var q0RxGbps, q0TxGbps, q5RxGbps, q5TxGbps float64
-// 		var q0Discard, q5Discard, oos uint64
-
-// 		// 只有在存在上一次数据时，才进行速率计算
-// 		if hasPrevious {
-// 			// 计算时间差（秒）
-// 			duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
-// 			if duration > 0 {
-// 				// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
-// 				q0RxGbps = float64(currentMetrics.Queue0Rx-prevMetrics.Queue0Rx) * 8 / duration / 1e9
-// 				q0TxGbps = float64(currentMetrics.Queue0Tx-prevMetrics.Queue0Tx) * 8 / duration / 1e9
-// 				q5RxGbps = float64(currentMetrics.Queue5Rx-prevMetrics.Queue5Rx) * 8 / duration / 1e9
-// 				q5TxGbps = float64(currentMetrics.Queue5Tx-prevMetrics.Queue5Tx) * 8 / duration / 1e9
-// 				q0Discard = currentMetrics.Queue0Discard - prevMetrics.Queue0Discard
-// 				q5Discard = currentMetrics.Queue5Discard - prevMetrics.Queue5Discard
-// 				oos = currentMetrics.OOS - prevMetrics.OOS
-// 			}
-// 		}
-
-// 		// 生成表格行，使用计算出的速率
-// 		newRows = append(newRows, table.Row{
-// 			currentMetrics.IBDev,
-// 			currentMetrics.PortSpeed,
-// 			fmt.Sprintf("%.2f", q0RxGbps),
-// 			fmt.Sprintf("%.2f", q0TxGbps),
-// 			fmt.Sprintf("%d", q0Discard),
-// 			fmt.Sprintf("%.2f", q5RxGbps),
-// 			fmt.Sprintf("%.2f", q5TxGbps),
-// 			fmt.Sprintf("%d", q5Discard),
-// 			fmt.Sprintf("%d", oos),
-// 			fmt.Sprintf("%d", currentMetrics.QPNum),
-// 			fmt.Sprintf("%d", currentMetrics.MRNum),
-// 			currentMetrics.RxPrio5Pause,
-// 			currentMetrics.TxPrio5Pause,
-// 			currentMetrics.NpCnpSent,
-// 			currentMetrics.RpCnpHandled,
-// 			currentTime.Format("15:04:05"),
-// 		})
-
-// 		newMetricsMap[deviceName] = currentMetrics
-// 	}
-
-// 	return newRows, newMetricsMap
-// }
-
 func initialModel() model {
 
 	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
@@ -266,10 +130,9 @@ func initialModel() model {
 	discoveredDevices := GetIBDev()
 	sort.Strings(discoveredDevices)
 
-	// 首次运行时，previousMetrics 是空的，所以速率会是 0
 	initialRows, initialMetrics := updateAndCalculateRates(make(map[string]DeviceMetrics), discoveredDevices)
 
-	initialTableWidth := 120 // 使用一个合理的默认值
+	initialTableWidth := 120
 	initialColumns := recalculateColumnWidths(columnWeights, initialTableWidth)
 
 	tbl := table.New(
@@ -360,13 +223,11 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 		currentRawMetrics[c.IBDev] = metrics
 	}
 
-	// 3. 遍历排序好的设备列表，计算速率并生成行
-
 	if allCounters[0].DevLinkType == "Ethernet" {
 		for _, deviceName := range deviceOrder {
 			currentMetrics, ok := currentRawMetrics[deviceName]
 			if !ok {
-				continue // 如果没有获取到该设备的数据，则跳过
+				continue
 			}
 			currentMetrics.LastUpdated = currentTime
 
@@ -375,9 +236,8 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			var q0RxGbps, q0TxGbps, q5RxGbps, q5TxGbps float64
 			var q0Discard, q5Discard, oos uint64
 
-			// 只有在存在上一次数据时，才进行速率计算
 			if hasPrevious {
-				// 计算时间差（秒）
+
 				duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
 				if duration > 0 {
 					// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
@@ -393,7 +253,6 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 				}
 			}
 
-			// 生成表格行，使用计算出的速率
 			newRows = append(newRows, table.Row{
 				currentMetrics.IBDev,
 				currentMetrics.PortSpeed,
@@ -421,7 +280,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 		for _, deviceName := range deviceOrder {
 			currentMetrics, ok := currentRawMetrics[deviceName]
 			if !ok {
-				continue // 如果没有获取到该设备的数据，则跳过
+				continue
 			}
 			currentMetrics.LastUpdated = currentTime
 
@@ -430,9 +289,7 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 			var rx, tx float64
 			var oos uint64
 
-			// 只有在存在上一次数据时，才进行速率计算
 			if hasPrevious {
-				// 计算时间差（秒）
 				duration := currentMetrics.LastUpdated.Sub(prevMetrics.LastUpdated).Seconds()
 				if duration > 0 {
 					// 速率(Gbps) = (当前字节数 - 上次字节数) * 8 bits/byte / 时间差(s) / 1e9 (G)
@@ -442,7 +299,6 @@ func updateAndCalculateRates(previousMetrics map[string]DeviceMetrics, deviceOrd
 				}
 			}
 
-			// 生成表格行，使用计算出的速率
 			newRows = append(newRows, table.Row{
 				currentMetrics.IBDev,
 				currentMetrics.PortSpeed,
@@ -477,17 +333,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-
-		// 1. 计算表格可用的总宽度 (减去边框和内边距)
-		tableWidth := m.width - 4 // 根据你的 containerStyle 调整
-
-		// 2. 使用我们的新函数，根据权重重新计算列宽
+		tableWidth := m.width - 4
 		newColumns := recalculateColumnWidths(m.columnWeights, tableWidth)
-
-		// 3. 将新计算出的列定义应用到表格上
 		m.tbl.SetColumns(newColumns)
-
-		// 4. 同时也要设置表格的总高度
 		m.tbl.SetHeight(m.height - 6)
 
 	case tea.KeyMsg:
@@ -497,19 +345,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tickMsg:
-		// *** MODIFIED: Update 逻辑现在非常简洁 ***
-		// 1. 传入上一次的 metrics (m.devices)，计算新数据
 		newRows, newMetrics := updateAndCalculateRates(m.devices, m.deviceOrder)
-
-		// 2. 更新 model 的状态
 		m.tbl.SetRows(newRows)
-		m.devices = newMetrics // *** CRITICAL: 保存当前数据，作为下一次的 "previous" 数据 ***
-
-		// 3. 请求下一次 tick
+		m.devices = newMetrics
 		return m, tickCmd()
 	}
 
-	// 把消息传递给 table 组件，让它处理滚动等内部事件
 	m.tbl, cmd = m.tbl.Update(msg)
 	return m, cmd
 }
