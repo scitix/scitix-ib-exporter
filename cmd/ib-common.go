@@ -40,6 +40,13 @@ $$
 	linkTypeRegex = regexp.MustCompile(`Cable Type\s*:\s*(.+)`)
 )
 
+func init() {
+	customIBSYSPATH := os.Getenv("IBSYSPATH")
+	if customIBSYSPATH != "" {
+		IBSYSPATH = customIBSYSPATH
+	}
+}
+
 type IBCounter struct {
 	IBDev        string  `json:"ib_dev"`
 	NetDev       string  `json:"net_dev"`

@@ -13,11 +13,11 @@ CMD_DIR := ./cmd
 default: build
 
 build:
-	CGO_ENABLED=0 GOOS=linux $(GOBUILD) -a -ldflags '-extldflags "-static"' -o $(BINARY_PATH) $(CMD_DIR)
+	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux $(GOBUILD) -a -ldflags '-extldflags "-static"' -o $(BINARY_PATH) $(CMD_DIR)
 
 # 静态链接构建（推荐用于不同GLIBC版本的机器）
 build-static:
-	CGO_ENABLED=0 GOOS=linux $(GOBUILD) -a -ldflags '-extldflags "-static"' -o $(BINARY_PATH) $(CMD_DIR)
+	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux $(GOBUILD) -a -ldflags '-extldflags "-static"' -o $(BINARY_PATH) $(CMD_DIR)
 
 # 动态链接构建（默认）
 build-dynamic:
