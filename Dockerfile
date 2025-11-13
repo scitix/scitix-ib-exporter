@@ -8,7 +8,7 @@ ARG ARCH="amd64"
 ARG OS="linux"
 FROM alpine:latest
 RUN apk add --no-cache \
-    curl \
+    curl pciutils ethtool\
     ca-certificates
 ARG ARCH="amd64"
 ARG OS="linux"

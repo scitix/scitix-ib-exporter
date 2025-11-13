@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -27,7 +28,8 @@ import (
 )
 
 var (
-	Version        = "0.0.3"
+	Version = "0.0.5"
+	// ibRegistry     *prometheus.Registry
 	ibcounterGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "node_ib_counters",
@@ -115,7 +117,7 @@ func getMRNum(allIBDev []string) []IBCounter {
 
 		// 5. 将字符串数值转换为整数
 		// qp, err1 := strconv.Atoi(matches[2])
-		mr, err2 := strconv.ParseUint(matches[3], 10, 64)
+		mr, err2 := strconv.ParseFloat(matches[3], 10)
 
 		if err2 != nil {
 			return counters
@@ -136,7 +138,7 @@ func getMRNum(allIBDev []string) []IBCounter {
 		counter.IBDev = IBDev
 		counter.CounterName = "MRNum"
 		counter.CounterValue = mr
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
+		log.Printf("ibDev:%11s, counterName:%35s:%f", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
@@ -146,7 +148,7 @@ func getQPNum(allIBDev []string) []IBCounter {
 	var counters []IBCounter
 	for _, IBDev := range allIBDev {
 		var counter IBCounter
-		var QPNum uint64
+		var QPNum float64
 		bdf := GetIBDevBDF(IBDev)
 		qpPath := path.Join("/sys/kernel/debug/mlx5", bdf, "QPs")
 		entries, err := os.ReadDir(qpPath)
@@ -174,7 +176,7 @@ func getQPNum(allIBDev []string) []IBCounter {
 		counter.IBDev = IBDev
 		counter.CounterName = "QPNum"
 		counter.CounterValue = QPNum
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
+		log.Printf("ibDev:%11s, counterName:%35s:%f", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
@@ -209,15 +211,126 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 		if strings.Contains(rate, "400") {
 			counter.CounterValue = 400000
 		}
-		log.Printf("ibDev:%11s, counterName:%35s:%d", counter.IBDev, counter.CounterName, counter.CounterValue)
+		log.Printf("ibDev:%11s, counterName:%35s:%f", counter.IBDev, counter.CounterName, counter.CounterValue)
 		counters = append(counters, counter)
 	}
 	return counters
 }
 
+func execOnHost(ctx context.Context, name string, args ...string) ([]byte, error) {
+	// 构建完整的命令参数
+	nsenterArgs := []string{"-t", "1", "-m", "-u", "-n", "-i", "-p", "--", name}
+	nsenterArgs = append(nsenterArgs, args...)
+
+	cmd := exec.CommandContext(ctx, "nsenter", nsenterArgs...)
+	return cmd.Output()
+}
+
+func getPortOpticalInfo(allIBDev []string) []IBCounter {
+	var allCounters []IBCounter
+
+	for _, device := range allIBDev {
+		if !isPhysicalIBDevice(device) {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancel()
+
+		output, err := execOnHost(ctx, "mlxlink", "-d", device, "-m")
+		if err != nil {
+			fmt.Printf("Error executing mlxlink for device %s: %v\n", device, err)
+			continue
+		}
+		counters := parseMlxlinkOutput(string(output), device)
+		allCounters = append(allCounters, counters...)
+	}
+
+	return allCounters
+}
+
+func parseMlxlinkOutput(output string, ibDev string) []IBCounter {
+	var counters []IBCounter
+	var devLinkType string
+
+	lines := strings.Split(output, "\n")
+
+	parseNumericLine := func(valuePart string, baseName string, multiplier float64) {
+		// 1. 清理值: 找到第一个 '[' 并截取之前的内容, 以移除阈值
+		if bracketIndex := strings.Index(valuePart, "["); bracketIndex != -1 {
+			valuePart = valuePart[:bracketIndex]
+		}
+		valuePart = strings.TrimSpace(valuePart)
+
+		// 2. 按逗号分割值, 以处理多通道 (e.g., "1.446,1.581")
+		valueStrings := strings.Split(valuePart, ",")
+
+		// 3. 遍历每个通道的值
+		for i, vStr := range valueStrings {
+			cleanedVStr := strings.TrimSpace(vStr)
+			valFloat, err := strconv.ParseFloat(cleanedVStr, 64)
+			if err != nil {
+				// 如果某个值解析失败, 就跳过它继续处理下一个
+				continue
+			}
+
+			counterName := baseName
+			// 如果有多个通道, 给指标名加上 _laneX 后缀
+			if len(valueStrings) > 1 {
+				counterName = fmt.Sprintf("%s_lane%d", baseName, i)
+			}
+
+			// 创建 IBCounter 并添加到结果切片中
+			counters = append(counters, IBCounter{
+				IBDev:        ibDev,
+				DevLinkType:  devLinkType, // devLinkType 会在主循环中被填充
+				CounterName:  counterName,
+				CounterValue: float64(valFloat * multiplier),
+			})
+			log.Printf("ibDev:%11s, counterName:%35s:%f", ibDev, counterName, float64(valFloat*multiplier))
+
+			// 恢复你之前的打印格式
+			// fmt.Printf("ibDev:%11s, counterName:%35s:%d\n", ibDev, counterName, uint64(valFloat*multiplier))
+		}
+	}
+
+	// 遍历每一行来解析数据
+	for _, line := range lines {
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// 使用 switch 语句判断键的名称, 并调用相应的处理逻辑
+		switch key {
+		case "Cable Type":
+			devLinkType = value // 这是一个简单的字符串赋值
+		case "Temperature [C]":
+			parseNumericLine(value, "module_temperature", 1)
+		case "Voltage [mV]":
+			parseNumericLine(value, "module_voltage", 1)
+		case "Bias Current [mA]":
+			parseNumericLine(value, "module_bias_current", 1000)
+		case "Rx Power Current [dBm]":
+			parseNumericLine(value, "module_rx_power", 1000)
+		case "Tx Power Current [dBm]":
+			parseNumericLine(value, "module_tx_power", 1000)
+		}
+	}
+
+	for i := range counters {
+		counters[i].DevLinkType = devLinkType
+	}
+
+	return counters
+}
+
 func GetRoceData(allIBDev []string) []IBCounter {
 	var counters []IBCounter
-	content, _ := os.ReadFile("/sys/class/infiniband/mlx5_0/ports/1/link_layer")
+
+	content, _ := os.ReadFile(path.Join("/sys/class/infiniband/", allIBDev[0], "ports", "1", "link_layer"))
 	contentStr := string(content)
 	trimmedContent := strings.TrimSpace(contentStr)
 	for i := range allIBDev {
@@ -275,7 +388,7 @@ func GetRoceData(allIBDev []string) []IBCounter {
 			val := strings.TrimSpace(parts[1])
 
 			if _, ok := fields[key]; ok {
-				num, err := strconv.ParseUint(val, 10, 64)
+				num, err := strconv.ParseFloat(val, 10)
 				if err != nil {
 					continue
 				}
@@ -296,18 +409,94 @@ func GetRoceData(allIBDev []string) []IBCounter {
 	}
 	return counters
 }
+func ModifyPCIeMaxReadRequest(deviceAddr string, offset string, newHighNibble int) error {
+	// Validate input parameters
+	if newHighNibble < 0 || newHighNibble > 0xF {
+		return fmt.Errorf("new high nibble value must be between 0-F")
+	}
+
+	// Read current value
+	readCmd := exec.Command("setpci", "-s", deviceAddr, offset+".w")
+	output, err := readCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to read PCI register: %v", err)
+	}
+
+	// Parse the returned hexadecimal value
+	currentValueStr := strings.TrimSpace(string(output))
+	currentValue, err := strconv.ParseUint(currentValueStr, 16, 16)
+	if err != nil {
+		return fmt.Errorf("failed to parse hex value: %v", err)
+	}
+
+	// fmt.Printf("Current value: 0x%04X\n", currentValue)
+
+	// Modify the high nibble
+	// Clear the top 4 bits (0x0FFF mask)
+	newValue := currentValue & 0x0FFF
+	// Set the new high nibble
+	newValue |= uint64(newHighNibble) << 12
+
+	log.Printf("Modifying PCIe Max Read Request for device %s at offset %s: current value 0x%04X, new value 0x%04X", deviceAddr, offset, currentValue, newValue)
+	// fmt.Printf("New value: 0x%04X\n", newValue)
+
+	// Write back the new value
+	writeValueStr := fmt.Sprintf("%04x", newValue)
+	writeCmd := exec.Command("setpci", "-s", deviceAddr, offset+".w="+writeValueStr)
+	err = writeCmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to write PCI register: %v", err)
+	}
+
+	// Verify the write was successful
+	verifyCmd := exec.Command("setpci", "-s", deviceAddr, offset+".w")
+	verifyOutput, err := verifyCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to verify write result: %v", err)
+	}
+
+	verifiedValueStr := strings.TrimSpace(string(verifyOutput))
+	verifiedValue, err := strconv.ParseUint(verifiedValueStr, 16, 16)
+	if err != nil {
+		return fmt.Errorf("failed to parse verification value: %v", err)
+	}
+
+	if verifiedValue != newValue {
+		return fmt.Errorf("write verification failed: expected 0x%04X, got 0x%04X", newValue, verifiedValue)
+	}
+
+	fmt.Printf("Successfully modified! Verified value: 0x%04X\n", verifiedValue)
+	return nil
+}
+
+func autoFixMrrs(ibDev []string) {
+	for _, dev := range ibDev {
+		BDF := GetIBDevBDF(dev)
+		ModifyPCIeMaxReadRequest(BDF, "68", 5)
+	}
+}
 
 func GetAllIBCounter() []IBCounter {
-	IBDev := GetIBDev()
-	ibCounters := getIBDevCounter(IBDev)
-	QPNums := getQPNum(IBDev)
+	IBDevs := GetIBDev()
+	autoFixMrrs(IBDevs)
+
+	ibCounters := getIBDevCounter(IBDevs)
+
+	QPNums := getQPNum(IBDevs)
 	ibCounters = append(ibCounters, QPNums...)
-	MRNums := getMRNum(IBDev)
+
+	MRNums := getMRNum(IBDevs)
 	ibCounters = append(ibCounters, MRNums...)
-	roceData := GetRoceData(IBDev)
+
+	roceData := GetRoceData(IBDevs)
 	ibCounters = append(ibCounters, roceData...)
-	portUtil := getPortSpeed(IBDev)
+
+	portUtil := getPortSpeed(IBDevs)
 	ibCounters = append(ibCounters, portUtil...)
+
+	// opticalInfo := getPortOpticalInfo(IBDevs)
+	// ibCounters = append(ibCounters, opticalInfo...)
+
 	return ibCounters
 }
 
@@ -357,7 +546,6 @@ func main() {
 	}
 	log.SetOutput(logOutput)
 
-	// monitor mode with in cmdline
 	if *monitor {
 		p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 		if _, err := p.Run(); err != nil {
@@ -406,7 +594,7 @@ func main() {
 			case <-ticker.C:
 				ibCounters := GetAllIBCounter()
 				for _, counter := range ibCounters {
-					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%d\n",
+					_, err := fmt.Fprintf(dataFile, "%d,%s,%s,%s,%s,%f\n",
 						time.Now().UnixNano(),
 						counter.IBDev,
 						counter.NetDev,
