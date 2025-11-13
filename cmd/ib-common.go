@@ -119,6 +119,14 @@ func isPhysicalIBDevice(deviceName string) bool {
 	log.Printf("Warning: Could not check device type for %s due to an error: %v. Assuming it's not a physical device.\n", deviceName, err)
 	return false
 }
+func containsAny(s string, keywords ...string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(s, keyword) {
+			return true
+		}
+	}
+	return false
+}
 
 func GetIBDev() []string {
 	allIBDev, err := listFiles(IBSYSPATH)
@@ -130,9 +138,10 @@ func GetIBDev() []string {
 	var activeIBDev []string
 	for _, ibDev := range allIBDev {
 		// skip virtual functions and mezz devices
-		if strings.Contains(ibDev, "mezz") {
+		if containsAny(ibDev, "mezz", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8") {
 			continue
 		}
+
 		if isDevActive(ibDev) {
 			activeIBDev = append(activeIBDev, ibDev)
 		}
