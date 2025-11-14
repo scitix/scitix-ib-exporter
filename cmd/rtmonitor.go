@@ -91,7 +91,7 @@ func recalculateColumnWidths(weights []table.Column, availableWidth int) []table
 func initialModel() model {
 
 	IBDevs := GetIBDev()
-	content, _ := os.ReadFile(path.Join("/sys/class/infiniband/", IBDevs[0], "ports", "1", "link_layer"))
+	content, _ := os.ReadFile(path.Join(IBSYSPATH, IBDevs[0], "ports", "1", "link_layer"))
 	contentStr := string(content)
 	trimmedContent := strings.TrimSpace(contentStr)
 

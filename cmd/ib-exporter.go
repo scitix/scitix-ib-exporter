@@ -199,7 +199,7 @@ func getPortSpeed(allIBDev []string) []IBCounter {
 		}
 		counter.IBDev = allIBDev[i]
 		counter.CounterName = "portSpeed"
-		ratePath := path.Join("/sys/class/infiniband", allIBDev[i], "ports/1/rate")
+		ratePath := path.Join(IBSYSPATH, allIBDev[i], "ports/1/rate")
 		rateByte, err := os.ReadFile(ratePath)
 		if err != nil {
 			log.Printf("Fail to read the file, path:%s", ratePath)
@@ -330,11 +330,11 @@ func parseMlxlinkOutput(output string, ibDev string) []IBCounter {
 func GetRoceData(allIBDev []string) []IBCounter {
 	var counters []IBCounter
 
-	content, _ := os.ReadFile(path.Join("/sys/class/infiniband/", allIBDev[0], "ports", "1", "link_layer"))
+	content, _ := os.ReadFile(path.Join(IBSYSPATH, allIBDev[0], "ports", "1", "link_layer"))
 	contentStr := string(content)
 	trimmedContent := strings.TrimSpace(contentStr)
 	for i := range allIBDev {
-		netDir := filepath.Join("/sys/class/infiniband", allIBDev[i], "device", "net")
+		netDir := filepath.Join(IBSYSPATH, allIBDev[i], "device", "net")
 		entries, err := os.ReadDir(netDir)
 		if err != nil {
 			log.Printf("Failed to read %s: %v\n", netDir, err)
@@ -370,6 +370,9 @@ func GetRoceData(allIBDev []string) []IBCounter {
 			}
 		}
 		cmd := exec.Command("ethtool", "-S", entries[0].Name())
+		if os.Getenv("CONTAINER") == "true" {
+			cmd = exec.Command("nsenter", "-t", "1", "-a", "ethtool", "-S", entries[0].Name())
+		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			return nil
