@@ -370,6 +370,9 @@ func GetRoceData(allIBDev []string) []IBCounter {
 			}
 		}
 		cmd := exec.Command("ethtool", "-S", entries[0].Name())
+		if os.Getenv("CONTAINER") == "true" {
+			cmd = exec.Command("nsenter", "-t", "1", "-a", "ethtool", "-S", entries[0].Name())
+		}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			return nil
